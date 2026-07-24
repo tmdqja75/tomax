@@ -54,6 +54,17 @@ def _run_step(run, command: list[str], cwd: Path) -> None:
         raise UIBuildError(f"`{' '.join(command)}` failed:\n{result.stderr}")
 
 
+def packaged_prebuilt_dir() -> Path | None:
+    """Return the dashboard UI shipped inside the installed package, if present.
+
+    Ships a pre-built ``dist/`` alongside the Python package so ``tomax
+    dashboard`` works when installed as a tool (pip/pipx/uv tool), where the
+    ``dashboard-ui/`` source checkout isn't available to build from.
+    """
+    candidate = Path(__file__).resolve().parent / "prebuilt_ui"
+    return candidate if (candidate / "index.html").is_file() else None
+
+
 def ensure_build(ui_dir: Path, *, force: bool = False, run=subprocess.run) -> Path:
     """Ensure the UI is built and return its dist directory, rebuilding only if needed."""
     dist_dir = ui_dir / "dist"

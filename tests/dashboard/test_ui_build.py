@@ -5,6 +5,21 @@ import pytest
 from tomax.dashboard import ui_build
 
 
+def test_packaged_prebuilt_dir_finds_shipped_build():
+    result = ui_build.packaged_prebuilt_dir()
+
+    assert result is not None
+    assert (result / "index.html").is_file()
+
+
+def test_packaged_prebuilt_dir_none_when_missing(monkeypatch):
+    monkeypatch.setattr(
+        ui_build.Path, "is_file", lambda self: False
+    )
+
+    assert ui_build.packaged_prebuilt_dir() is None
+
+
 def test_ensure_build_skips_when_fresh(tmp_path):
     (tmp_path / "dist").mkdir()
     (tmp_path / "dist" / "index.html").write_text("x", encoding="utf-8")
