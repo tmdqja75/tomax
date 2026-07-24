@@ -20,7 +20,7 @@ from playwright.sync_api import sync_playwright
 
 from tomax.dashboard.payload import build_payload
 from tomax.dashboard.server import make_server
-from tomax.dashboard.ui_build import ensure_build
+from tomax.dashboard.ui_build import resolve_dist_dir
 from tomax.privacy import PrivacyPolicy
 
 _SETTLE_MS = 2000
@@ -130,7 +130,7 @@ def export_dashboard_png(
         bar_chart_threshold_days=bar_chart_threshold_days,
         tmp_stage_dir=tmp_stage_dir,
     )
-    dist_dir = ensure_build(ui_dir, force=force_build)
+    dist_dir = resolve_dist_dir(ui_dir, force=force_build)
     screenshot_payload(
         payload, output_path, dist_dir=dist_dir, lang=lang, width=width, scale=scale
     )

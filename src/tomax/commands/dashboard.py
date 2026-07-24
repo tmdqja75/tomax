@@ -9,7 +9,7 @@ from tomax.config import load_config
 from tomax.dashboard.payload import build_payload
 from tomax.dashboard.remote import NoRepoTargetError
 from tomax.dashboard.server import serve
-from tomax.dashboard.ui_build import UIBuildError, ensure_build
+from tomax.dashboard.ui_build import UIBuildError, resolve_dist_dir
 from tomax.privacy import PrivacyPolicy
 
 # The React UI source lives at the repo root under dashboard-ui/.
@@ -51,12 +51,8 @@ def run(
     except NoRepoTargetError as error:
         raise DashboardError(str(error)) from error
 
-    if not ui_dir.is_dir():
-        raise DashboardError(
-            f"dashboard UI source not found at {ui_dir} — run from a repository checkout"
-        )
     try:
-        dist_dir = ensure_build(ui_dir, force=force_build)
+        dist_dir = resolve_dist_dir(ui_dir, force=force_build)
     except UIBuildError as error:
         raise DashboardError(str(error)) from error
 
