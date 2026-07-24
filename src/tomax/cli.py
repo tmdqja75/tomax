@@ -23,6 +23,7 @@ from tomax.commands.collect import (
     DEFAULT_HERMES_STATE_DB,
 )
 from tomax.commands.publish import GhAuthError
+from tomax.dashboard.ui_build import UIBuildError
 from tomax.config import (
     config_file_path,
     data_dir,
@@ -176,18 +177,22 @@ def render(
     config = load_config(config_file_path())
     resolved_output_dir = output_dir or (ledger_file_path().parent / "preview")
     with tempfile.TemporaryDirectory(prefix="tomax-render-") as tmp:
-        result = render_command.render(
-            ledger_path=ledger_file_path(),
-            output_dir=resolved_output_dir,
-            ui_dir=dashboard_command.UI_DIR,
-            tmp_stage_dir=Path(tmp),
-            privacy_policy=PrivacyPolicy.from_config(config),
-            today=now.date(),
-            generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
-            pie_top_n=pie_top_n,
-            bar_chart_threshold_days=config.bar_chart_threshold_days,
-            force_build=rebuild,
-        )
+        try:
+            result = render_command.render(
+                ledger_path=ledger_file_path(),
+                output_dir=resolved_output_dir,
+                ui_dir=dashboard_command.UI_DIR,
+                tmp_stage_dir=Path(tmp),
+                privacy_policy=PrivacyPolicy.from_config(config),
+                today=now.date(),
+                generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
+                pie_top_n=pie_top_n,
+                bar_chart_threshold_days=config.bar_chart_threshold_days,
+                force_build=rebuild,
+            )
+        except UIBuildError as error:
+            typer.echo(f"tomax: {error}")
+            raise typer.Exit(code=1) from error
     typer.echo(f"tomax: preview written to {result.readme_path}")
     typer.echo(
         "tomax: dashboard changed" if result.changed else "tomax: dashboard unchanged"

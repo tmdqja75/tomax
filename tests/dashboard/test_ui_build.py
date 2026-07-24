@@ -72,3 +72,34 @@ def test_ensure_build_raises_on_build_failure(tmp_path, monkeypatch):
 
     with pytest.raises(ui_build.UIBuildError):
         ui_build.ensure_build(tmp_path, run=fake_run)
+
+
+def test_resolve_dist_dir_builds_from_source_when_present(tmp_path, monkeypatch):
+    ui_dir = tmp_path / "dashboard-ui"
+    ui_dir.mkdir()
+    monkeypatch.setattr(
+        ui_build, "ensure_build", lambda ui_dir, *, force, run=None: ui_dir / "dist"
+    )
+
+    assert ui_build.resolve_dist_dir(ui_dir) == ui_dir / "dist"
+
+
+def test_resolve_dist_dir_falls_back_to_prebuilt_when_source_missing(tmp_path, monkeypatch):
+    prebuilt = tmp_path / "prebuilt"
+    monkeypatch.setattr(ui_build, "packaged_prebuilt_dir", lambda: prebuilt)
+
+    assert ui_build.resolve_dist_dir(tmp_path / "dashboard-ui-missing") == prebuilt
+
+
+def test_resolve_dist_dir_raises_when_source_and_prebuilt_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(ui_build, "packaged_prebuilt_dir", lambda: None)
+
+    with pytest.raises(ui_build.UIBuildError):
+        ui_build.resolve_dist_dir(tmp_path / "dashboard-ui-missing")
+
+
+def test_resolve_dist_dir_rejects_force_when_source_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(ui_build, "packaged_prebuilt_dir", lambda: tmp_path / "prebuilt")
+
+    with pytest.raises(ui_build.UIBuildError):
+        ui_build.resolve_dist_dir(tmp_path / "dashboard-ui-missing", force=True)
