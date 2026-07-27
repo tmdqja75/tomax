@@ -122,6 +122,28 @@ body { font-family: ui-sans-serif, system-ui, sans-serif; }
 .row-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 720px) { .row-two { grid-template-columns: 1fr; } }
 
+.date-range-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.date-range-filter label { display: flex; align-items: center; gap: 6px; }
+.date-range-filter input[type="date"] {
+  background: var(--page-bg);
+  color: var(--text);
+  border: 1px solid var(--chart-brush-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color-scheme: dark;
+}
+.date-range-filter button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--chart-brush-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.date-range-filter button:hover { color: var(--text); }
+
 .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 12px; color: var(--muted); }
 .legend .item { display: flex; align-items: center; gap: 6px; }
 .legend .swatch { width: 10px; height: 10px; border-radius: 2px; }

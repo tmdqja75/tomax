@@ -36,6 +36,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "state.noAgentActivity": "No agent activity yet.",
     "state.noActivity": "No activity recorded yet.",
     "bucket.other": "Other",
+    "filter.from": "From",
+    "filter.to": "To",
+    "filter.reset": "Reset",
   },
   ko: {
     "title.tokenUsage": "총 토큰 사용량",
@@ -58,6 +61,9 @@ const translations: Record<Lang, Record<string, string>> = {
     "state.noAgentActivity": "아직 에이전트 활동이 없습니다.",
     "state.noActivity": "아직 기록된 활동이 없습니다.",
     "bucket.other": "기타",
+    "filter.from": "시작일",
+    "filter.to": "종료일",
+    "filter.reset": "초기화",
   },
 };
 
