@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AgentRing } from "./charts/AgentRing";
 import { CalendarHeatmap } from "./charts/CalendarHeatmap";
+import { DateRangeFilter } from "./charts/DateRangeFilter";
 import { TokenChart } from "./charts/TokenChart";
 import { UsageDonut } from "./charts/UsageDonut";
 import { parseISODate, windowDateFmt } from "@/components/charts/chart-formatters";
@@ -19,6 +20,7 @@ type Data = {
 export default function App() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
 
   useEffect(() => {
     fetch("data.json")
@@ -26,6 +28,19 @@ export default function App() {
       .then(setData)
       .catch((e) => setError(String(e)));
   }, []);
+
+  const tokenDates = useMemo(() => data?.tokens.map((p) => p.date) ?? [], [data]);
+  const tokenMin = tokenDates[0];
+  const tokenMax = tokenDates[tokenDates.length - 1];
+
+  useEffect(() => {
+    if (tokenMin && tokenMax) setRange({ from: tokenMin, to: tokenMax });
+  }, [tokenMin, tokenMax]);
+
+  const filteredTokens = useMemo(() => {
+    if (!data || !range) return data?.tokens ?? [];
+    return data.tokens.filter((p) => p.date >= range.from && p.date <= range.to);
+  }, [data, range]);
 
   if (error) return <div className="dashboard empty">{t("state.error")} {error}</div>;
   if (!data) return <div className="dashboard empty">{t("state.loading")}</div>;
@@ -40,7 +55,16 @@ export default function App() {
             {windowDateFmt.format(parseISODate(data.window.end))}
           </span>
         </h2>
-        <TokenChart data={data.tokens} useBarChart={data.tokensChartType === "bar"} />
+        {tokenMin && tokenMax && range && (
+          <DateRangeFilter
+            min={tokenMin}
+            max={tokenMax}
+            from={range.from}
+            to={range.to}
+            onChange={setRange}
+          />
+        )}
+        <TokenChart data={filteredTokens} useBarChart={data.tokensChartType === "bar"} />
       </section>
       <section className="block">
         <h2>{t("title.usageByAgent")}</h2>

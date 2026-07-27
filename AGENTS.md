@@ -54,9 +54,11 @@ See [README.md](README.md) for the user-facing guide.
     `src/index.css`.
   - `src/charts/` — thin leaf wrappers that feed `data.json` into bklit:
     `TokenArea`/`TokenBar` (Area/stacked-Bar chart + tooltip, switched by
-    `TokenChart` on `data.tokensChartType`), `AgentRing` (RingChart + Legend),
-    `UsageDonut` (PieChart, Skills + MCP), plus the custom `CalendarHeatmap` and
-    the `names.ts` label/palette map.
+    `TokenChart` on `data.tokensChartType`), `DateRangeFilter` (native date
+    inputs, clamped to the loaded token date range, filters the Total Token
+    Usage chart client-side — `App.tsx` owns the `{from, to}` state), `AgentRing`
+    (RingChart + Legend), `UsageDonut` (PieChart, Skills + MCP), plus the custom
+    `CalendarHeatmap` and the `names.ts` label/palette map.
   - `src/i18n.ts` — translation lookup and locale-aware number/date formatting,
     driven by `window.__LANG__` (`en` or `ko`).
   Built on demand by `dashboard/ui_build.py`; `node_modules/` and `dist/` are gitignored.
