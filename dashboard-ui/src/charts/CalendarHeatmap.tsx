@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { TooltipContent } from "@/components/charts/tooltip/tooltip-content";
 import { agentLabel, CATEGORY_COLORS } from "./names";
-import { t } from "@/i18n";
+import { t, getLocale } from "@/i18n";
+
+const monthFmt = new Intl.DateTimeFormat(getLocale(), { month: "short" });
+const weekdayFmt = new Intl.DateTimeFormat(getLocale(), { weekday: "short" });
 
 export type HeatDatum = {
   date: string;
@@ -54,38 +57,72 @@ export function CalendarHeatmap({ data }: { data: HeatDatum[] }) {
     return SCALE[Math.min(idx, SCALE.length - 1)];
   };
 
+  // Min 2-column gap between labels so a lone trailing day from the
+  // previous month doesn't collide with the next month's label.
+  let lastMonthKey = "";
+  let lastLabelIndex = -Infinity;
+  const monthLabels = weeks.map((week, wi) => {
+    const refDay = week.find((d) => d >= first) ?? week[0];
+    const key = `${refDay.getFullYear()}-${refDay.getMonth()}`;
+    if (key === lastMonthKey || wi - lastLabelIndex < 2) return "";
+    lastMonthKey = key;
+    lastLabelIndex = wi;
+    return monthFmt.format(refDay);
+  });
+
+  const weekdayLabels = [0, 1, 2, 3, 4, 5, 6].map((i) =>
+    i === 1 || i === 3 || i === 5 ? weekdayFmt.format(weeks[0][i]) : ""
+  );
+
   return (
     <div className="cal-wrap">
-      <div className="cal">
-        {weeks.map((week, wi) => (
-          <div className="col" key={wi}>
-            {week.map((day) => {
-              const key = iso(day);
-              const tokens = byDate.get(key);
-              const inRange = day >= first && day <= last;
-              const color = inRange && tokens !== undefined ? bucket(tokens) : "transparent";
-              const datum = byDatum.get(key);
-              return (
-                <div
-                  className="cell"
-                  key={key}
-                  style={{ background: color }}
-                  onMouseEnter={(e) => {
-                    if (!inRange || !datum) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const parentRect = e.currentTarget.closest(".cal-wrap")!.getBoundingClientRect();
-                    setHover({
-                      x: rect.left - parentRect.left + rect.width / 2,
-                      y: rect.top - parentRect.top,
-                      datum,
-                    });
-                  }}
-                  onMouseLeave={() => setHover(null)}
-                />
-              );
-            })}
-          </div>
+      <div className="cal-months">
+        <div className="cal-weekday-spacer" />
+        {monthLabels.map((label, wi) => (
+          <span className="cal-month" key={wi}>
+            {label}
+          </span>
         ))}
+      </div>
+      <div className="cal-body">
+        <div className="cal-weekdays">
+          {weekdayLabels.map((label, i) => (
+            <span className="cal-weekday" key={i}>
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="cal">
+          {weeks.map((week, wi) => (
+            <div className="col" key={wi}>
+              {week.map((day) => {
+                const key = iso(day);
+                const tokens = byDate.get(key);
+                const inRange = day >= first && day <= last;
+                const color = inRange && tokens !== undefined ? bucket(tokens) : "transparent";
+                const datum = byDatum.get(key);
+                return (
+                  <div
+                    className="cell"
+                    key={key}
+                    style={{ background: color }}
+                    onMouseEnter={(e) => {
+                      if (!inRange || !datum) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const parentRect = e.currentTarget.closest(".cal-wrap")!.getBoundingClientRect();
+                      setHover({
+                        x: rect.left - parentRect.left + rect.width / 2,
+                        y: rect.top - parentRect.top,
+                        datum,
+                      });
+                    }}
+                    onMouseLeave={() => setHover(null)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
       {hover && (
         <div
