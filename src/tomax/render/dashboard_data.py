@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from tomax.aggregate import (
+    agent_effective_total,
     aggregate_records,
     daily_agent_totals,
     daily_token_totals,
@@ -33,9 +34,14 @@ def build_dashboard_data(
     window_days: int = 14,
     pie_top_n: int = 6,
     bar_chart_threshold_days: int = 15,
+    include_cache_tokens: bool = True,
 ) -> dict:
-    """Reshape validated daily payloads into the dashboard's data.json contract."""
-    token_by_date = daily_token_totals(valid_payloads)
+    """Reshape validated daily payloads into the dashboard's data.json contract.
+
+    ``include_cache_tokens`` (default ``True``) folds prompt-cache tokens
+    into the displayed totals — see ``aggregate.agent_effective_total``.
+    """
+    token_by_date = daily_token_totals(valid_payloads, include_cache_tokens=include_cache_tokens)
 
     tokens = [
         {
@@ -43,6 +49,7 @@ def build_dashboard_data(
             "input": totals["input"],
             "output": totals["output"],
             "reasoning": totals["reasoning"],
+            "cache": totals["cache"],
         }
         for day, totals in sorted(token_by_date.items())
         if totals is not None
@@ -59,11 +66,18 @@ def build_dashboard_data(
 
     aggregated = aggregate_records(valid_payloads)
     agents = [
-        {"agent": agent.value, "tokens": aggregated["agents"][agent.value]["headline_total"]}
+        {
+            "agent": agent.value,
+            "tokens": agent_effective_total(
+                agent.value,
+                aggregated["agents"][agent.value],
+                include_cache_tokens=include_cache_tokens,
+            ),
+        }
         for agent in SupportedAgent
     ]
 
-    agent_totals_by_day = daily_agent_totals(valid_payloads)
+    agent_totals_by_day = daily_agent_totals(valid_payloads, include_cache_tokens=include_cache_tokens)
     heatmap = [
         {
             "date": day,
@@ -75,7 +89,9 @@ def build_dashboard_data(
                 )
             ],
         }
-        for day, total in sorted(daily_totals(valid_payloads).items())
+        for day, total in sorted(
+            daily_totals(valid_payloads, include_cache_tokens=include_cache_tokens).items()
+        )
     ]
 
     return {

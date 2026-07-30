@@ -27,7 +27,9 @@ def test_build_payload_remote_uses_fetched_entries(monkeypatch, tmp_path):
 
         return R()
 
-    def fake_build(valid_payloads, *, today, pie_top_n, bar_chart_threshold_days):
+    def fake_build(
+        valid_payloads, *, today, pie_top_n, bar_chart_threshold_days, include_cache_tokens
+    ):
         captured["valid_payloads"] = valid_payloads
         return {"ok": True}
 

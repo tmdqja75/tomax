@@ -56,6 +56,7 @@ def render(
     pie_top_n: int = 6,
     bar_chart_threshold_days: int = 15,
     force_build: bool = False,
+    include_cache_tokens: bool = True,
 ) -> RenderResult:
     """Regenerate this device's local dashboard preview. Returns whether anything changed."""
     repository = LedgerRepository.open(ledger_path)
@@ -85,6 +86,7 @@ def render(
         pie_top_n=pie_top_n,
         bar_chart_threshold_days=bar_chart_threshold_days,
         force_build=force_build,
+        include_cache_tokens=include_cache_tokens,
     )
     png_bytes = tmp_png.read_bytes()
     tmp_png.unlink(missing_ok=True)

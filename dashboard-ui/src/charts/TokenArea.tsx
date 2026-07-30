@@ -11,6 +11,7 @@ export type TokenPoint = {
   input: number;
   output: number;
   reasoning: number;
+  cache: number;
 };
 
 export function TokenArea({ data }: { data: TokenPoint[] }) {
@@ -23,6 +24,7 @@ export function TokenArea({ data }: { data: TokenPoint[] }) {
         <Area dataKey="input" fill={SERIES_COLORS.input} />
         <Area dataKey="output" fill={SERIES_COLORS.output} />
         <Area dataKey="reasoning" fill={SERIES_COLORS.reasoning} />
+        <Area dataKey="cache" fill={SERIES_COLORS.cache} />
         <YAxis formatLargeNumbers />
         <XAxis />
         <ChartTooltip
@@ -35,11 +37,12 @@ export function TokenArea({ data }: { data: TokenPoint[] }) {
               value: p.reasoning as number,
               color: SERIES_COLORS.reasoning,
             },
+            { label: t("legend.cache"), value: p.cache as number, color: SERIES_COLORS.cache },
           ]}
         />
       </AreaChart>
       <div className="legend">
-        {(["input", "output", "reasoning"] as const).map((k) => (
+        {(["input", "output", "reasoning", "cache"] as const).map((k) => (
           <span className="item" key={k}>
             <span className="swatch" style={{ background: SERIES_COLORS[k] }} />
             {t(`legend.${k}`)}

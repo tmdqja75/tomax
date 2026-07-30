@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+_EVENTS_CACHE_TOKEN_COLUMNS = ("cache_read_tokens", "cache_write_tokens")
 
 _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
@@ -15,6 +17,8 @@ CREATE TABLE IF NOT EXISTS events (
     input_tokens INTEGER,
     output_tokens INTEGER,
     reasoning_tokens INTEGER,
+    cache_read_tokens INTEGER,
+    cache_write_tokens INTEGER,
     observed_skill_name TEXT,
     observed_mcp_server_name TEXT,
     observed_mcp_tool_name TEXT,
@@ -63,6 +67,20 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 """
 
 
+def _add_missing_events_columns(connection: sqlite3.Connection) -> None:
+    """Add ``events`` columns introduced after a DB's original creation.
+
+    ``CREATE TABLE IF NOT EXISTS`` never alters an already-existing table,
+    so a ledger created before cache-token tracking was added needs its
+    ``events`` table patched in place rather than recreated, to keep every
+    already-collected row.
+    """
+    existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
+    for column in _EVENTS_CACHE_TOKEN_COLUMNS:
+        if column not in existing_columns:
+            connection.execute(f"ALTER TABLE events ADD COLUMN {column} INTEGER")
+
+
 def apply_schema(connection: sqlite3.Connection) -> None:
     """Create the ledger tables if they do not already exist."""
     with connection:
@@ -72,6 +90,7 @@ def apply_schema(connection: sqlite3.Connection) -> None:
         connection.execute(_CREATE_BACKFILL_PROBES)
         connection.execute(_CREATE_DEVICE_IDENTITY)
         connection.execute(_CREATE_SCHEMA_MIGRATIONS)
+        _add_missing_events_columns(connection)
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
             (SCHEMA_VERSION,),

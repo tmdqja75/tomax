@@ -204,6 +204,40 @@ def test_reasoning_tokens_are_tracked_separately_for_codex(tmp_path) -> None:
     assert record.headline_total == 18
 
 
+def test_cache_read_tokens_are_diffed_like_other_dimensions_for_codex(tmp_path) -> None:
+    sessions_dir = _sessions_dir(tmp_path)
+    write_rollout(
+        sessions_dir / "2026" / "07" / "10" / "rollout-x.jsonl",
+        "session-1",
+        [
+            token_count_event(IN_WINDOW_1, total_input=3081, total_output=72, total_cached=2000),
+            token_count_event(IN_WINDOW_2, total_input=6265, total_output=177, total_cached=4608),
+        ],
+    )
+
+    records = codex.collect(sessions_dir, WINDOW)
+
+    cache_deltas = sorted(r.tokens.cache_read_tokens for r in records)
+    assert cache_deltas == [2000, 2608]
+
+
+def test_cache_write_tokens_are_always_zero_for_codex(tmp_path) -> None:
+    sessions_dir = _sessions_dir(tmp_path)
+    write_rollout(
+        sessions_dir / "2026" / "07" / "10" / "rollout-x.jsonl",
+        "session-1",
+        [
+            token_count_event(IN_WINDOW_1, total_input=10, total_output=5, total_cached=4608),
+        ],
+    )
+
+    [record] = codex.collect(sessions_dir, WINDOW)
+
+    assert record.tokens.cache_write_tokens == 0
+    assert record.tokens.cache_read_tokens == 4608
+    assert record.headline_total == 15
+
+
 def test_collect_splits_mcp_server_and_tool_name(tmp_path) -> None:
     sessions_dir = _sessions_dir(tmp_path)
     write_rollout(

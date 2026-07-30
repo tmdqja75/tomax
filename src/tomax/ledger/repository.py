@@ -16,9 +16,18 @@ _INSERT_EVENT_SQL = """
 INSERT OR IGNORE INTO events (
     fingerprint, agent, occurred_at, session_fingerprint,
     input_tokens, output_tokens, reasoning_tokens,
+    cache_read_tokens, cache_write_tokens,
     observed_skill_name, observed_mcp_server_name, observed_mcp_tool_name,
     source_status, schema_version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+_CACHE_TOKEN_TOTALS_BY_AGENT_SQL = """
+SELECT agent, SUM(cache_read_tokens) AS cache_read_tokens,
+       SUM(cache_write_tokens) AS cache_write_tokens
+FROM events
+WHERE source_status != ?
+GROUP BY agent
 """
 
 _UPSERT_CHECKPOINT_SQL = """
@@ -37,6 +46,8 @@ def _record_to_row(record: NormalizedUsageRecord) -> tuple:
         tokens.input_tokens if tokens is not None else None,
         tokens.output_tokens if tokens is not None else None,
         tokens.reasoning_tokens if tokens is not None else None,
+        tokens.cache_read_tokens if tokens is not None else None,
+        tokens.cache_write_tokens if tokens is not None else None,
         record.observed_skill_name,
         record.observed_mcp_server_name,
         record.observed_mcp_tool_name,
@@ -54,6 +65,9 @@ def _row_to_record(row: sqlite3.Row) -> NormalizedUsageRecord:
             input_tokens=row["input_tokens"],
             output_tokens=row["output_tokens"],
             reasoning_tokens=row["reasoning_tokens"],
+            # `or 0` covers rows written before cache-token columns existed.
+            cache_read_tokens=row["cache_read_tokens"] or 0,
+            cache_write_tokens=row["cache_write_tokens"] or 0,
         )
     return NormalizedUsageRecord(
         agent=SupportedAgent(row["agent"]),
@@ -113,6 +127,27 @@ class LedgerRepository:
                 (agent.value,),
             ).fetchall()
         return [_row_to_record(row) for row in rows]
+
+    def cache_token_totals_by_agent(self) -> dict[SupportedAgent, dict[str, int]]:
+        """Sum cache-read and cache-write tokens per agent across the whole ledger.
+
+        Every :class:`~tomax.models.SupportedAgent` is present in the result
+        even with zero stored events, so callers never need an existence
+        check. ``source_unavailable`` marker rows are excluded since they
+        carry no token counts.
+        """
+        totals = {
+            agent: {"cache_read_tokens": 0, "cache_write_tokens": 0} for agent in SupportedAgent
+        }
+        rows = self._connection.execute(
+            _CACHE_TOKEN_TOTALS_BY_AGENT_SQL, (SourceStatus.SOURCE_UNAVAILABLE.value,)
+        ).fetchall()
+        for row in rows:
+            totals[SupportedAgent(row["agent"])] = {
+                "cache_read_tokens": row["cache_read_tokens"] or 0,
+                "cache_write_tokens": row["cache_write_tokens"] or 0,
+            }
+        return totals
 
     def get_checkpoint(self, agent: SupportedAgent) -> datetime | None:
         """Return the last collected instant for an agent, or None if unset."""

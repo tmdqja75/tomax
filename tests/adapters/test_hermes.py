@@ -129,6 +129,8 @@ def test_collect_aggregates_token_totals_from_session_model_usage(tmp_path) -> N
     assert all(r.source_status is SourceStatus.AVAILABLE_WITH_ACTIVITY for r in records)
     totals = sorted(r.headline_total for r in records)
     assert totals == [15, 1230]
+    cache_totals = sorted((r.tokens.cache_read_tokens, r.tokens.cache_write_tokens) for r in records)
+    assert cache_totals == [(0, 0), (5000, 500)]
 
 
 def test_cache_tokens_never_inflate_the_headline_total(tmp_path) -> None:
@@ -153,6 +155,8 @@ def test_cache_tokens_never_inflate_the_headline_total(tmp_path) -> None:
     [record] = hermes.collect(db_path, WINDOW)
 
     assert record.headline_total == 16
+    assert record.tokens.cache_read_tokens == 999_999
+    assert record.tokens.cache_write_tokens == 999_999
 
 
 def test_collect_extracts_skill_name_from_skill_view_call(tmp_path) -> None:

@@ -132,6 +132,11 @@ def collect(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Preview what would be collected without writing to the ledger."
     ),
+    exclude_cache_tokens: bool = typer.Option(
+        False,
+        "--exclude-cache-tokens",
+        help="Don't record prompt cache-read/cache-write token counts in the ledger.",
+    ),
 ) -> None:
     """Pull new local agent usage into the private ledger."""
     now = datetime.now(timezone.utc)
@@ -145,6 +150,7 @@ def collect(
         now=now,
         configured_start=configured_start,
         dry_run=dry_run,
+        include_cache_tokens=not exclude_cache_tokens,
     )
     for result in results:
         status = result.status.value if result.status is not None else "up to date"
@@ -169,6 +175,11 @@ def render(
     rebuild: bool = typer.Option(
         False, "--rebuild", help="Force a fresh UI build even if the cached build looks current."
     ),
+    exclude_cache_tokens: bool = typer.Option(
+        False,
+        "--exclude-cache-tokens",
+        help="Exclude prompt cache tokens from the displayed totals.",
+    ),
 ) -> None:
     """Render a local preview of the dashboard from this device's own collected data."""
     if pie_top_n < 1:
@@ -189,6 +200,7 @@ def render(
                 pie_top_n=pie_top_n,
                 bar_chart_threshold_days=config.bar_chart_threshold_days,
                 force_build=rebuild,
+                include_cache_tokens=not exclude_cache_tokens,
             )
         except UIBuildError as error:
             typer.echo(f"tomax: {error}")
@@ -215,6 +227,11 @@ def dashboard(
     lang: str = typer.Option(
         "en", "--lang", help="Dashboard UI language: 'en' (default) or 'ko'."
     ),
+    exclude_cache_tokens: bool = typer.Option(
+        False,
+        "--exclude-cache-tokens",
+        help="Exclude prompt cache tokens from the displayed totals.",
+    ),
 ) -> None:
     """Serve an interactive localhost usage dashboard (local data, or --all-devices)."""
     if pie_top_n < 1:
@@ -236,6 +253,7 @@ def dashboard(
                 force_build=rebuild,
                 today=now.date(),
                 tmp_stage_dir=Path(tmp),
+                include_cache_tokens=not exclude_cache_tokens,
             )
         except dashboard_command.DashboardError as error:
             typer.echo(f"tomax: {error}")

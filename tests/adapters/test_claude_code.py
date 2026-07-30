@@ -109,6 +109,8 @@ def test_collect_returns_token_records_for_in_window_assistant_events(tmp_path) 
     assert record.agent is SupportedAgent.CLAUDE_CODE
     assert record.source_status is SourceStatus.AVAILABLE_WITH_ACTIVITY
     assert record.headline_total == 1200
+    assert record.tokens.cache_write_tokens == 5000
+    assert record.tokens.cache_read_tokens == 9000
 
 
 def test_reasoning_tokens_are_always_zero_for_claude_code(tmp_path) -> None:
@@ -152,6 +154,8 @@ def test_cache_tokens_never_inflate_the_headline_total(tmp_path) -> None:
     [record] = claude_code.collect(projects_dir, WINDOW)
 
     assert record.headline_total == 15
+    assert record.tokens.cache_write_tokens == 999_999
+    assert record.tokens.cache_read_tokens == 999_999
 
 
 def test_collect_extracts_skill_name_from_skill_tool_use(tmp_path) -> None:
