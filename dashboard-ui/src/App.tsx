@@ -9,7 +9,7 @@ import { t } from "./i18n";
 
 type Data = {
   window: { start: string; end: string };
-  tokens: { date: string; input: number; output: number; reasoning: number }[];
+  tokens: { date: string; input: number; output: number; reasoning: number; cache: number }[];
   tokensChartType: "bar" | "area";
   agents: { agent: string; tokens: number }[];
   skills: { name: string; count: number }[];

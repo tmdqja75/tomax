@@ -23,6 +23,7 @@ export const SERIES_COLORS = {
   input: "#60A5FA",
   output: "#34D399",
   reasoning: "#A78BFA",
+  cache: "#F472B6",
 };
 
 export const CATEGORY_COLORS = [

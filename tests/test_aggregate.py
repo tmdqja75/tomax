@@ -42,6 +42,8 @@ def _payload(
     input_tokens: int = 10,
     output_tokens: int = 5,
     reasoning_tokens: int = 1,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
     session_count: int = 1,
     status: SourceStatus = SourceStatus.AVAILABLE_WITH_ACTIVITY,
     skills: dict | None = None,
@@ -56,7 +58,11 @@ def _payload(
         fingerprint=f"fp-{device_id}-{day.isoformat()}",
         session_fingerprint=f"session-{device_id}-{day.isoformat()}",
         tokens=TokenUsage(
-            input_tokens=input_tokens, output_tokens=output_tokens, reasoning_tokens=reasoning_tokens
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            reasoning_tokens=reasoning_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
         )
         if status is not SourceStatus.SOURCE_UNAVAILABLE
         else None,
@@ -436,8 +442,62 @@ def test_daily_token_totals_groups_token_types_and_preserves_unknown_days() -> N
 
     totals = daily_token_totals(payloads)
 
-    assert totals["2026-07-10"] == {"input": 30, "output": 9, "reasoning": 3}
+    assert totals["2026-07-10"] == {"input": 30, "output": 9, "reasoning": 3, "cache": 0}
     assert totals["2026-07-11"] is None
+
+
+def test_daily_token_totals_keeps_cache_tokens_in_their_own_bucket() -> None:
+    payloads = [
+        _payload(
+            device_id="device-a",
+            input_tokens=10,
+            output_tokens=5,
+            reasoning_tokens=1,
+            cache_read_tokens=100,
+            cache_write_tokens=20,
+            agent=SupportedAgent.CLAUDE_CODE,
+        ),
+    ]
+
+    totals = daily_token_totals(payloads)
+
+    assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 120}
+
+
+def test_daily_token_totals_excludes_codex_cache_read_since_its_in_input_already() -> None:
+    payloads = [
+        _payload(
+            device_id="device-a",
+            input_tokens=10,
+            output_tokens=5,
+            reasoning_tokens=1,
+            cache_read_tokens=100,
+            cache_write_tokens=0,
+            agent=SupportedAgent.CODEX,
+        ),
+    ]
+
+    totals = daily_token_totals(payloads)
+
+    assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 0}
+
+
+def test_daily_token_totals_cache_bucket_is_zero_when_excluded() -> None:
+    payloads = [
+        _payload(
+            device_id="device-a",
+            input_tokens=10,
+            output_tokens=5,
+            reasoning_tokens=1,
+            cache_read_tokens=100,
+            cache_write_tokens=20,
+            agent=SupportedAgent.CLAUDE_CODE,
+        ),
+    ]
+
+    totals = daily_token_totals(payloads, include_cache_tokens=False)
+
+    assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 0}
 
 
 def test_monthly_totals_sums_headline_total_by_calendar_month() -> None:

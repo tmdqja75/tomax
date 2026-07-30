@@ -328,38 +328,40 @@ def daily_agent_totals(
 def daily_token_totals(
     payloads: list[dict], *, include_cache_tokens: bool = True
 ) -> dict[str, dict[str, int] | None]:
-    """Sum daily input/output/reasoning tokens from observable agent sources.
+    """Sum daily input/output/reasoning/cache tokens from observable agent sources.
 
     A day with public records but no available source is returned as ``None``
     rather than as a fabricated zero.  On days where at least one source was
     available, unavailable sources contribute nothing while the available
     sources' token fields are aggregated across devices.
 
-    By default (``include_cache_tokens=True``), cache-read and cache-write
-    tokens are folded into the ``"input"`` bucket, since prompt caching is
-    an input-side cost — except Codex's cache-read count, which is already
-    inside its ``input_tokens`` (see :func:`agent_effective_total`).
+    Cache tokens are kept in their own ``"cache"`` bucket, separate from
+    ``"input"`` — not folded together — so a stacked chart can show cache
+    tokens as their own segment. By default (``include_cache_tokens=True``)
+    that bucket sums cache-read plus cache-write, except Codex's cache-read
+    count, which is already inside its ``input_tokens`` (see
+    :func:`agent_effective_total`); ``include_cache_tokens=False`` reports
+    the bucket as ``0`` instead of omitting the key.
     """
     totals: dict[str, dict[str, int]] = {}
     has_available_source: dict[str, bool] = {}
     for payload in payloads:
         date_str = payload["date"]
         day_totals = totals.setdefault(
-            date_str, {"input": 0, "output": 0, "reasoning": 0}
+            date_str, {"input": 0, "output": 0, "reasoning": 0, "cache": 0}
         )
         has_available_source.setdefault(date_str, False)
         for agent_name, agent_data in payload.get("agents", {}).items():
             if agent_data["source_status"] == SourceStatus.SOURCE_UNAVAILABLE.value:
                 continue
             has_available_source[date_str] = True
-            cache_input = 0
-            if include_cache_tokens:
-                if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
-                    cache_input += agent_data["cache_read_tokens"]
-                cache_input += agent_data["cache_write_tokens"]
-            day_totals["input"] += agent_data["input_tokens"] + cache_input
+            day_totals["input"] += agent_data["input_tokens"]
             day_totals["output"] += agent_data["output_tokens"]
             day_totals["reasoning"] += agent_data["reasoning_tokens"]
+            if include_cache_tokens:
+                if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+                    day_totals["cache"] += agent_data["cache_read_tokens"]
+                day_totals["cache"] += agent_data["cache_write_tokens"]
 
     return {
         date_str: day_totals if has_available_source[date_str] else None

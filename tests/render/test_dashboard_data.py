@@ -61,8 +61,8 @@ def test_build_dashboard_data_shapes_every_section():
 
     assert data["window"] == {"start": "2026-07-10", "end": "2026-07-11"}
     assert data["tokens"] == [
-        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0},
-        {"date": "2026-07-11", "input": 10, "output": 5, "reasoning": 2},
+        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0, "cache": 0},
+        {"date": "2026-07-11", "input": 10, "output": 5, "reasoning": 2, "cache": 0},
     ]
     assert {"agent": "claude_code", "tokens": 150} in data["agents"]
     assert {"agent": "codex", "tokens": 17} in data["agents"]
@@ -125,7 +125,7 @@ def test_tokens_chart_type_is_bar_when_span_exceeds_the_threshold():
     assert data["tokensChartType"] == "bar"
 
 
-def test_cache_tokens_are_included_in_the_input_bucket_by_default():
+def test_cache_tokens_are_a_separate_bucket_in_the_tokens_chart_by_default():
     payloads = [
         _payload(
             "2026-07-10",
@@ -137,12 +137,15 @@ def test_cache_tokens_are_included_in_the_input_bucket_by_default():
 
     data = build_dashboard_data(payloads, today=date(2026, 7, 10), window_days=14)
 
-    assert data["tokens"] == [{"date": "2026-07-10", "input": 125, "output": 50, "reasoning": 0}]
+    assert data["tokens"] == [
+        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0, "cache": 25}
+    ]
+    # the ring/heatmap totals still fold cache into one per-agent number
     assert {"agent": "claude_code", "tokens": 175} in data["agents"]
     assert data["heatmap"][0]["tokens"] == 175
 
 
-def test_exclude_cache_tokens_reverts_to_headline_total_only():
+def test_exclude_cache_tokens_zeroes_the_cache_bucket_and_reverts_totals():
     payloads = [
         _payload(
             "2026-07-10",
@@ -156,11 +159,13 @@ def test_exclude_cache_tokens_reverts_to_headline_total_only():
         payloads, today=date(2026, 7, 10), window_days=14, include_cache_tokens=False
     )
 
-    assert data["tokens"] == [{"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0}]
+    assert data["tokens"] == [
+        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0, "cache": 0}
+    ]
     assert {"agent": "claude_code", "tokens": 150} in data["agents"]
 
 
-def test_codex_cache_read_is_not_double_counted_since_its_already_in_input():
+def test_codex_cache_read_is_excluded_from_the_cache_bucket_since_its_already_in_input():
     payloads = [
         _payload(
             "2026-07-10",
@@ -172,5 +177,7 @@ def test_codex_cache_read_is_not_double_counted_since_its_already_in_input():
 
     data = build_dashboard_data(payloads, today=date(2026, 7, 10), window_days=14)
 
-    assert data["tokens"] == [{"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0}]
+    assert data["tokens"] == [
+        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0, "cache": 0}
+    ]
     assert {"agent": "codex", "tokens": 150} in data["agents"]

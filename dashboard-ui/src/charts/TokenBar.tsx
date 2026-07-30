@@ -25,6 +25,7 @@ export function TokenBar({ data }: { data: TokenPoint[] }) {
         <Bar dataKey="input" fill={SERIES_COLORS.input} lineCap="butt" />
         <Bar dataKey="output" fill={SERIES_COLORS.output} lineCap="butt" />
         <Bar dataKey="reasoning" fill={SERIES_COLORS.reasoning} lineCap="butt" />
+        <Bar dataKey="cache" fill={SERIES_COLORS.cache} lineCap="butt" />
         <YAxis formatLargeNumbers />
         <BarXAxis />
         <ChartTooltip
@@ -37,11 +38,12 @@ export function TokenBar({ data }: { data: TokenPoint[] }) {
               value: p.reasoning as number,
               color: SERIES_COLORS.reasoning,
             },
+            { label: t("legend.cache"), value: p.cache as number, color: SERIES_COLORS.cache },
           ]}
         />
       </BarChart>
       <div className="legend">
-        {(["input", "output", "reasoning"] as const).map((k) => (
+        {(["input", "output", "reasoning", "cache"] as const).map((k) => (
           <span className="item" key={k}>
             <span className="swatch" style={{ background: SERIES_COLORS[k] }} />
             {t(`legend.${k}`)}

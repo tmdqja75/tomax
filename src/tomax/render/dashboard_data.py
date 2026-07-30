@@ -49,6 +49,7 @@ def build_dashboard_data(
             "input": totals["input"],
             "output": totals["output"],
             "reasoning": totals["reasoning"],
+            "cache": totals["cache"],
         }
         for day, totals in sorted(token_by_date.items())
         if totals is not None
