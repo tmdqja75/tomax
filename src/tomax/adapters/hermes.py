@@ -8,7 +8,8 @@ Token totals come from ``session_model_usage`` rather than the coarser
 ``sessions`` aggregate columns: every session with any tokens has full
 ``session_model_usage`` coverage, and it carries real per-row
 ``last_seen`` timestamps plus per-model granularity that the session-level
-columns don't.
+columns don't. ``cache_read_tokens``/``cache_write_tokens`` are read
+straight from their own columns on that table.
 
 MCP tool calls are recognized by Hermes's ``mcp__<server>__<tool>`` wire
 naming convention (see ``mcp_prefixed_tool_name`` in Hermes's own
@@ -77,7 +78,7 @@ def _collect_token_records(
         """
         SELECT session_id, model, billing_provider, billing_base_url,
                billing_mode, task, input_tokens, output_tokens,
-               reasoning_tokens, last_seen
+               reasoning_tokens, cache_read_tokens, cache_write_tokens, last_seen
         FROM session_model_usage
         WHERE last_seen >= ? AND last_seen < ?
         """,
@@ -90,6 +91,8 @@ def _collect_token_records(
             input_tokens=row["input_tokens"],
             output_tokens=row["output_tokens"],
             reasoning_tokens=row["reasoning_tokens"],
+            cache_read_tokens=row["cache_read_tokens"],
+            cache_write_tokens=row["cache_write_tokens"],
         )
         status = (
             SourceStatus.AVAILABLE_WITH_ACTIVITY

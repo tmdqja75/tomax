@@ -118,7 +118,19 @@ def _token_record_from_assistant_event(
     if isinstance(input_tokens, bool) or isinstance(output_tokens, bool):
         return None
 
-    tokens = TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
+    cache_write_tokens = usage.get("cache_creation_input_tokens", 0)
+    cache_read_tokens = usage.get("cache_read_input_tokens", 0)
+    if not isinstance(cache_write_tokens, int) or isinstance(cache_write_tokens, bool):
+        cache_write_tokens = 0
+    if not isinstance(cache_read_tokens, int) or isinstance(cache_read_tokens, bool):
+        cache_read_tokens = 0
+
+    tokens = TokenUsage(
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cache_write_tokens=cache_write_tokens,
+        cache_read_tokens=cache_read_tokens,
+    )
     status = (
         SourceStatus.AVAILABLE_WITH_ACTIVITY
         if tokens.headline_total > 0

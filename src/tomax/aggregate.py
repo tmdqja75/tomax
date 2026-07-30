@@ -19,7 +19,7 @@ from datetime import date, timedelta
 from tomax.models import SourceStatus, SupportedAgent
 from tomax.public_data import MAX_NAME_ENTRIES_PER_CATEGORY, verify_checksum
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MAX_PAYLOAD_BYTES = 100_000
 MAX_COUNTER_ENTRIES = MAX_NAME_ENTRIES_PER_CATEGORY + 1  # + the overflow bucket
@@ -28,9 +28,38 @@ _AGENT_TOTAL_FIELDS = (
     "input_tokens",
     "output_tokens",
     "reasoning_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
     "headline_total",
     "session_count",
 )
+
+# Codex reports cache_read_tokens as a subset of input_tokens (not additive --
+# see adapters/codex.py), unlike Claude Code and Hermes, which report it
+# separately from input_tokens. So a cache-inclusive total must skip
+# cache_read_tokens for Codex specifically, to avoid double-counting those
+# tokens. cache_write_tokens has no such exception (Codex's is always 0).
+_AGENTS_WITH_ADDITIVE_CACHE_READ = frozenset(
+    {SupportedAgent.CLAUDE_CODE.value, SupportedAgent.HERMES_AGENT.value}
+)
+
+
+def agent_effective_total(
+    agent_name: str, agent_data: dict, *, include_cache_tokens: bool = True
+) -> int:
+    """Return the agent's displayed total: headline_total, plus cache tokens by default.
+
+    ``include_cache_tokens=False`` reproduces the pre-cache-tracking
+    behavior (``headline_total`` alone), for callers/flags that want to
+    exclude prompt-cache tokens from the displayed total.
+    """
+    total = agent_data["headline_total"]
+    if not include_cache_tokens:
+        return total
+    if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+        total += agent_data["cache_read_tokens"]
+    total += agent_data["cache_write_tokens"]
+    return total
 _COUNTER_CATEGORIES = ("skills", "mcp_servers", "mcp_tools")
 
 # Precedence when devices disagree on an agent's status for the same day:
@@ -252,49 +281,64 @@ def _overall_status(statuses: object) -> str:
     return best if best is not None else SourceStatus.SOURCE_UNAVAILABLE.value
 
 
-def daily_totals(payloads: list[dict]) -> dict[str, int]:
-    """Sum headline_total across all agents/devices for each day with data.
+def daily_totals(payloads: list[dict], *, include_cache_tokens: bool = True) -> dict[str, int]:
+    """Sum each agent's effective total across all agents/devices for each day with data.
 
     Only dates present in at least one payload appear in the result.
     Callers must treat an absent date as "no data," never as zero — the
     project's core distinction between source_unavailable and confirmed
-    zero activity applies to chart data too.
+    zero activity applies to chart data too. Cache tokens are included by
+    default (see :func:`agent_effective_total`); pass
+    ``include_cache_tokens=False`` to total ``headline_total`` alone.
     """
     totals: dict[str, int] = {}
     for payload in payloads:
         date_str = payload["date"]
         day_total = sum(
-            agent_data["headline_total"] for agent_data in payload.get("agents", {}).values()
+            agent_effective_total(agent_name, agent_data, include_cache_tokens=include_cache_tokens)
+            for agent_name, agent_data in payload.get("agents", {}).items()
         )
         totals[date_str] = totals.get(date_str, 0) + day_total
     return totals
 
 
-def daily_agent_totals(payloads: list[dict]) -> dict[str, dict[str, int]]:
-    """Sum headline_total per agent for each day with data.
+def daily_agent_totals(
+    payloads: list[dict], *, include_cache_tokens: bool = True
+) -> dict[str, dict[str, int]]:
+    """Sum each agent's effective total per agent for each day with data.
 
     Agents with zero total for a day are omitted from that day's dict.
-    Same no-data-means-absent contract as :func:`daily_totals` for dates.
+    Same no-data-means-absent contract as :func:`daily_totals` for dates,
+    and the same cache-token default as :func:`agent_effective_total`.
     """
     totals: dict[str, dict[str, int]] = {}
     for payload in payloads:
         date_str = payload["date"]
         day_totals = totals.setdefault(date_str, {})
         for agent_name, agent_data in payload.get("agents", {}).items():
-            headline = agent_data["headline_total"]
-            if headline == 0:
+            total = agent_effective_total(
+                agent_name, agent_data, include_cache_tokens=include_cache_tokens
+            )
+            if total == 0:
                 continue
-            day_totals[agent_name] = day_totals.get(agent_name, 0) + headline
+            day_totals[agent_name] = day_totals.get(agent_name, 0) + total
     return totals
 
 
-def daily_token_totals(payloads: list[dict]) -> dict[str, dict[str, int] | None]:
+def daily_token_totals(
+    payloads: list[dict], *, include_cache_tokens: bool = True
+) -> dict[str, dict[str, int] | None]:
     """Sum daily input/output/reasoning tokens from observable agent sources.
 
     A day with public records but no available source is returned as ``None``
     rather than as a fabricated zero.  On days where at least one source was
     available, unavailable sources contribute nothing while the available
     sources' token fields are aggregated across devices.
+
+    By default (``include_cache_tokens=True``), cache-read and cache-write
+    tokens are folded into the ``"input"`` bucket, since prompt caching is
+    an input-side cost — except Codex's cache-read count, which is already
+    inside its ``input_tokens`` (see :func:`agent_effective_total`).
     """
     totals: dict[str, dict[str, int]] = {}
     has_available_source: dict[str, bool] = {}
@@ -304,11 +348,16 @@ def daily_token_totals(payloads: list[dict]) -> dict[str, dict[str, int] | None]
             date_str, {"input": 0, "output": 0, "reasoning": 0}
         )
         has_available_source.setdefault(date_str, False)
-        for agent_data in payload.get("agents", {}).values():
+        for agent_name, agent_data in payload.get("agents", {}).items():
             if agent_data["source_status"] == SourceStatus.SOURCE_UNAVAILABLE.value:
                 continue
             has_available_source[date_str] = True
-            day_totals["input"] += agent_data["input_tokens"]
+            cache_input = 0
+            if include_cache_tokens:
+                if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+                    cache_input += agent_data["cache_read_tokens"]
+                cache_input += agent_data["cache_write_tokens"]
+            day_totals["input"] += agent_data["input_tokens"] + cache_input
             day_totals["output"] += agent_data["output_tokens"]
             day_totals["reasoning"] += agent_data["reasoning_tokens"]
 
@@ -318,16 +367,18 @@ def daily_token_totals(payloads: list[dict]) -> dict[str, dict[str, int] | None]
     }
 
 
-def monthly_totals(payloads: list[dict]) -> dict[str, int]:
-    """Sum headline_total across all agents/devices for each YYYY-MM month with data.
+def monthly_totals(payloads: list[dict], *, include_cache_tokens: bool = True) -> dict[str, int]:
+    """Sum each agent's effective total across all agents/devices for each YYYY-MM month with data.
 
-    Same no-data-means-absent contract as :func:`daily_totals`.
+    Same no-data-means-absent contract as :func:`daily_totals`, and the same
+    cache-token default as :func:`agent_effective_total`.
     """
     totals: dict[str, int] = {}
     for payload in payloads:
         month_key = payload["date"][:7]
         day_total = sum(
-            agent_data["headline_total"] for agent_data in payload.get("agents", {}).values()
+            agent_effective_total(agent_name, agent_data, include_cache_tokens=include_cache_tokens)
+            for agent_name, agent_data in payload.get("agents", {}).items()
         )
         totals[month_key] = totals.get(month_key, 0) + day_total
     return totals

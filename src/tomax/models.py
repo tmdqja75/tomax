@@ -30,14 +30,33 @@ class SourceStatus(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class TokenUsage:
-    """Token counts included in the Task 2 headline total."""
+    """Token counts for a single usage observation.
+
+    ``cache_read_tokens`` and ``cache_write_tokens`` are tracked separately
+    from :attr:`headline_total` (``input + output + reasoning``): prompt
+    caching isn't consistently additive with ``input_tokens`` across
+    sources (Claude Code and Hermes report it separately from
+    ``input_tokens``; Codex reports it as a subset of ``input_tokens``), so
+    this low-level record keeps both raw components rather than picking one
+    combined number here. Display-time code that wants a single
+    cache-inclusive total, provider-aware, uses
+    :func:`tomax.aggregate.agent_effective_total`.
+    """
 
     input_tokens: int = 0
     output_tokens: int = 0
     reasoning_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
     def __post_init__(self) -> None:
-        for field_name in ("input_tokens", "output_tokens", "reasoning_tokens"):
+        for field_name in (
+            "input_tokens",
+            "output_tokens",
+            "reasoning_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+        ):
             value = getattr(self, field_name)
             if type(value) is not int or value < 0:
                 raise ValueError(f"{field_name} must be a non-negative integer")

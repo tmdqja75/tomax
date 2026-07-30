@@ -192,6 +192,60 @@ def test_dashboard_rejects_an_invalid_lang(tmp_path, monkeypatch) -> None:
     assert "lang" in _strip_ansi(result.output).lower()
 
 
+def test_dashboard_includes_cache_tokens_by_default(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+
+    def _fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(cli_module.dashboard_command, "run", _fake_run)
+
+    result = runner.invoke(app, ["dashboard", "--no-open"])
+
+    assert result.exit_code == 0
+    assert captured["include_cache_tokens"] is True
+
+
+def test_dashboard_exclude_cache_tokens_flag_is_threaded_through(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+
+    def _fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(cli_module.dashboard_command, "run", _fake_run)
+
+    result = runner.invoke(app, ["dashboard", "--no-open", "--exclude-cache-tokens"])
+
+    assert result.exit_code == 0
+    assert captured["include_cache_tokens"] is False
+
+
+def test_render_exclude_cache_tokens_flag_is_threaded_through(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+
+    def _fake_render(**kwargs):
+        captured.update(kwargs)
+        from tomax.commands.render import RenderResult
+
+        return RenderResult(device_id="dev", readme_path=tmp_path / "README.md", changed=False)
+
+    monkeypatch.setattr(cli_module.render_command, "render", _fake_render)
+
+    output_dir = tmp_path / "preview"
+    result = runner.invoke(
+        app, ["render", "--output-dir", str(output_dir), "--exclude-cache-tokens"]
+    )
+
+    assert result.exit_code == 0
+    assert captured["include_cache_tokens"] is False
+
+
 def test_publish_command_requires_a_repo_target(tmp_path, monkeypatch) -> None:
     _patch_local_paths(monkeypatch, tmp_path)
 
@@ -337,6 +391,42 @@ def test_collect_uses_the_configured_start_date(tmp_path, monkeypatch) -> None:
     from tomax.time_window import EPOCH_START
 
     assert captured["configured_start"] == EPOCH_START
+
+
+def test_collect_includes_cache_tokens_by_default(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+    original_collect_all = cli_module.collect_command.collect_all
+
+    def _capturing_collect_all(**kwargs):
+        captured.update(kwargs)
+        return original_collect_all(**kwargs)
+
+    monkeypatch.setattr(cli_module.collect_command, "collect_all", _capturing_collect_all)
+
+    result = runner.invoke(app, ["collect", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert captured["include_cache_tokens"] is True
+
+
+def test_collect_exclude_cache_tokens_flag_disables_cache_tracking(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+    original_collect_all = cli_module.collect_command.collect_all
+
+    def _capturing_collect_all(**kwargs):
+        captured.update(kwargs)
+        return original_collect_all(**kwargs)
+
+    monkeypatch.setattr(cli_module.collect_command, "collect_all", _capturing_collect_all)
+
+    result = runner.invoke(app, ["collect", "--dry-run", "--exclude-cache-tokens"])
+
+    assert result.exit_code == 0
+    assert captured["include_cache_tokens"] is False
 
 
 def test_publish_command_resolves_repo_url_from_config_and_reports_the_result(

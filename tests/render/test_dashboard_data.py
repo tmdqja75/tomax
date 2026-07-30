@@ -5,11 +5,22 @@ from tomax.render.dashboard_data import build_dashboard_data
 _STATUS = "available_with_activity"
 
 
-def _agent(input_=0, output=0, reasoning=0, headline=0, sessions=0, status=_STATUS):
+def _agent(
+    input_=0,
+    output=0,
+    reasoning=0,
+    headline=0,
+    sessions=0,
+    status=_STATUS,
+    cache_read=0,
+    cache_write=0,
+):
     return {
         "input_tokens": input_,
         "output_tokens": output,
         "reasoning_tokens": reasoning,
+        "cache_read_tokens": cache_read,
+        "cache_write_tokens": cache_write,
         "headline_total": headline,
         "session_count": sessions,
         "source_status": status,
@@ -18,7 +29,7 @@ def _agent(input_=0, output=0, reasoning=0, headline=0, sessions=0, status=_STAT
 
 def _payload(day, *, device="dev1", claude=None, codex=None, skills=None, mcp=None):
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "device_id": device,
         "date": day,
         "agents": {
@@ -112,3 +123,54 @@ def test_tokens_chart_type_is_bar_when_span_exceeds_the_threshold():
     )
     assert data["window"] == {"start": "2026-07-11", "end": "2026-07-16"}
     assert data["tokensChartType"] == "bar"
+
+
+def test_cache_tokens_are_included_in_the_input_bucket_by_default():
+    payloads = [
+        _payload(
+            "2026-07-10",
+            claude=_agent(
+                input_=100, output=50, reasoning=0, headline=150, cache_read=20, cache_write=5
+            ),
+        ),
+    ]
+
+    data = build_dashboard_data(payloads, today=date(2026, 7, 10), window_days=14)
+
+    assert data["tokens"] == [{"date": "2026-07-10", "input": 125, "output": 50, "reasoning": 0}]
+    assert {"agent": "claude_code", "tokens": 175} in data["agents"]
+    assert data["heatmap"][0]["tokens"] == 175
+
+
+def test_exclude_cache_tokens_reverts_to_headline_total_only():
+    payloads = [
+        _payload(
+            "2026-07-10",
+            claude=_agent(
+                input_=100, output=50, reasoning=0, headline=150, cache_read=20, cache_write=5
+            ),
+        ),
+    ]
+
+    data = build_dashboard_data(
+        payloads, today=date(2026, 7, 10), window_days=14, include_cache_tokens=False
+    )
+
+    assert data["tokens"] == [{"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0}]
+    assert {"agent": "claude_code", "tokens": 150} in data["agents"]
+
+
+def test_codex_cache_read_is_not_double_counted_since_its_already_in_input():
+    payloads = [
+        _payload(
+            "2026-07-10",
+            codex=_agent(
+                input_=100, output=50, reasoning=0, headline=150, cache_read=20, cache_write=0
+            ),
+        ),
+    ]
+
+    data = build_dashboard_data(payloads, today=date(2026, 7, 10), window_days=14)
+
+    assert data["tokens"] == [{"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0}]
+    assert {"agent": "codex", "tokens": 150} in data["agents"]

@@ -264,6 +264,63 @@ def test_collect_agent_reports_none_status_when_nothing_new(tmp_path) -> None:
     )
 
 
+def _fake_collect_with_cache_tokens(path, window):
+    return [
+        NormalizedUsageRecord(
+            agent=SupportedAgent.CODEX,
+            occurred_at=NOW,
+            fingerprint="fp-cache",
+            tokens=TokenUsage(
+                input_tokens=10, output_tokens=5, cache_read_tokens=100, cache_write_tokens=20
+            ),
+            source_status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+        )
+    ]
+
+
+def test_collect_agent_persists_cache_tokens_by_default(tmp_path) -> None:
+    ledger_path = tmp_path / "ledger.sqlite3"
+    repository = LedgerRepository.open(ledger_path)
+    try:
+        collect_agent(
+            SupportedAgent.CODEX,
+            _fake_collect_with_cache_tokens,
+            tmp_path / "unused",
+            repository,
+            now=NOW,
+            dry_run=False,
+        )
+        [stored] = repository.list_records()
+    finally:
+        repository.close()
+
+    assert stored.tokens.cache_read_tokens == 100
+    assert stored.tokens.cache_write_tokens == 20
+
+
+def test_collect_agent_strips_cache_tokens_when_excluded(tmp_path) -> None:
+    ledger_path = tmp_path / "ledger.sqlite3"
+    repository = LedgerRepository.open(ledger_path)
+    try:
+        collect_agent(
+            SupportedAgent.CODEX,
+            _fake_collect_with_cache_tokens,
+            tmp_path / "unused",
+            repository,
+            now=NOW,
+            dry_run=False,
+            include_cache_tokens=False,
+        )
+        [stored] = repository.list_records()
+    finally:
+        repository.close()
+
+    assert stored.tokens.cache_read_tokens == 0
+    assert stored.tokens.cache_write_tokens == 0
+    assert stored.tokens.input_tokens == 10
+    assert stored.tokens.output_tokens == 5
+
+
 # --- backfill_window ------------------------------------------------------
 
 

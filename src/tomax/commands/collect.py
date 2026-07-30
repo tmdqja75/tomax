@@ -22,7 +22,7 @@ collection stays deterministic and testable.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -135,6 +135,18 @@ def source_paths_by_agent(
     }
 
 
+def _strip_cache_tokens(records: list[NormalizedUsageRecord]) -> list[NormalizedUsageRecord]:
+    """Zero each record's cache-read/cache-write tokens before they reach the ledger."""
+    return [
+        record
+        if record.tokens is None
+        else replace(
+            record, tokens=replace(record.tokens, cache_read_tokens=0, cache_write_tokens=0)
+        )
+        for record in records
+    ]
+
+
 def collect_agent(
     agent: SupportedAgent,
     adapter_collect: AdapterCollect,
@@ -144,8 +156,14 @@ def collect_agent(
     now: datetime,
     dry_run: bool,
     configured_start: datetime = DEFAULT_INITIAL_START,
+    include_cache_tokens: bool = True,
 ) -> AgentCollectionResult:
-    """Collect one agent's new usage records — forward and any backfill gap — and persist them."""
+    """Collect one agent's new usage records — forward and any backfill gap — and persist them.
+
+    ``include_cache_tokens=False`` zeroes cache-read/cache-write tokens
+    before they're written to the ledger, for users who don't want prompt-
+    cache counts recorded at all.
+    """
     is_first_ever_run = repository.get_checkpoint(agent) is None
     forward = collection_window(agent, repository, now=now, configured_start=configured_start)
     backfill = backfill_window(agent, repository, configured_start=configured_start)
@@ -160,6 +178,9 @@ def collect_agent(
         records.extend(adapter_collect(source_path, forward))
     if backfill is not None:
         records.extend(adapter_collect(source_path, backfill))
+
+    if not include_cache_tokens:
+        records = _strip_cache_tokens(records)
 
     status = overall_source_status(records)
 
@@ -190,6 +211,7 @@ def collect_all(
     now: datetime,
     configured_start: datetime = DEFAULT_INITIAL_START,
     dry_run: bool = False,
+    include_cache_tokens: bool = True,
 ) -> list[AgentCollectionResult]:
     """Collect every supported agent's new usage into the local ledger."""
     source_paths = source_paths_by_agent(
@@ -208,6 +230,7 @@ def collect_all(
                 now=now,
                 dry_run=dry_run,
                 configured_start=configured_start,
+                include_cache_tokens=include_cache_tokens,
             )
             for agent, adapter_collect in ADAPTER_COLLECTORS
         ]

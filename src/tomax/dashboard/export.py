@@ -118,6 +118,7 @@ def export_dashboard_png(
     width: int = 1100,
     scale: int = 2,
     force_build: bool = False,
+    include_cache_tokens: bool = True,
 ) -> None:
     """Assemble the local payload, build the UI, and screenshot it to ``output_path``."""
     payload = build_payload(
@@ -129,6 +130,7 @@ def export_dashboard_png(
         pie_top_n=pie_top_n,
         bar_chart_threshold_days=bar_chart_threshold_days,
         tmp_stage_dir=tmp_stage_dir,
+        include_cache_tokens=include_cache_tokens,
     )
     dist_dir = resolve_dist_dir(ui_dir, force=force_build)
     screenshot_payload(

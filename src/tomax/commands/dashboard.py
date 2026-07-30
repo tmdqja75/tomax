@@ -34,6 +34,7 @@ def run(
     force_build: bool,
     today: date,
     tmp_stage_dir: Path,
+    include_cache_tokens: bool = True,
 ) -> None:
     """Build the payload, build the UI on demand, and serve until interrupted."""
     config = load_config(config_path)
@@ -47,6 +48,7 @@ def run(
             pie_top_n=pie_top_n,
             bar_chart_threshold_days=config.bar_chart_threshold_days,
             tmp_stage_dir=tmp_stage_dir,
+            include_cache_tokens=include_cache_tokens,
         )
     except NoRepoTargetError as error:
         raise DashboardError(str(error)) from error

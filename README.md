@@ -41,6 +41,10 @@ uv run tomax collect --dry-run
 uv run tomax collect
 ```
 
+`collect` records prompt cache-read/cache-write token counts in the ledger
+by default; pass `--exclude-cache-tokens` to skip recording them at all
+(see [Prompt cache token tracking](#prompt-cache-token-tracking)).
+
 Render a fully local dashboard preview after collecting. This command does not
 use Git or the network; it writes a preview README, sanitized daily records,
 and a screenshot of the dashboard to the chosen directory.
@@ -93,6 +97,12 @@ Flags:
   `Other` (default `6`).
 - `--lang` — dashboard UI language: `en` (default) or `ko`. Localizes chart
   titles, legends, tooltips, number formatting, and date formatting.
+- `--exclude-cache-tokens` — exclude prompt cache-read/cache-write tokens
+  from the displayed totals (see [Prompt cache token
+  tracking](#prompt-cache-token-tracking)). Included by default.
+
+`tomax render` accepts the same `--exclude-cache-tokens` flag for its
+screenshot/README preview.
 
 The dashboard renders five blocks: total token usage over the rolling window,
 usage by agent (ring chart), Skills and MCP usage pies, and a calendar activity
@@ -104,9 +114,9 @@ The first release supports these local sources:
 
 | Agent | Local source | Accounting behavior |
 | --- | --- | --- |
-| Hermes Agent | `~/.hermes/state.db` | Reads usage rows plus observed skill and MCP calls. |
-| Claude Code | `~/.claude/projects/*/*.jsonl` | Reads assistant usage and observed Skill/MCP calls. Claude Code's reasoning counter is `0` because its source payload does not expose a separate reasoning field. |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | Converts cumulative `token_count` snapshots into per-session deltas, including safe handling for counter resets; reads observed MCP calls. |
+| Hermes Agent | `~/.hermes/state.db` | Reads usage rows (including per-row `cache_read_tokens`/`cache_write_tokens`) plus observed skill and MCP calls. |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | Reads assistant usage, including `cache_creation_input_tokens`/`cache_read_input_tokens`, and observed Skill/MCP calls. Claude Code's reasoning counter is `0` because its source payload does not expose a separate reasoning field. |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | Converts cumulative `token_count` snapshots (including `cached_input_tokens`) into per-session deltas, including safe handling for counter resets; reads observed MCP calls. Codex has no cache-write signal, so its cache-write count is always `0`. |
 
 The collector does not infer usage when a source is missing or malformed. Each
 agent reports one of the following statuses:
@@ -117,6 +127,27 @@ agent reports one of the following statuses:
 
 `source_unavailable` is deliberately different from zero activity and is not
 treated as a zero-token estimate.
+
+### Prompt cache token tracking
+
+Every source above also reports cache-read and cache-write token counts.
+`collect` records them in the private ledger by default (`--exclude-cache-tokens`
+skips recording them at all), and `dashboard`/`render` include them in the
+displayed totals by default (`--exclude-cache-tokens` there falls back to
+`input + output + reasoning` only).
+
+The inclusion is provider-aware to avoid double-counting: Claude Code and
+Hermes report cache-read/cache-write tokens as additional to `input_tokens`,
+so both are added on top; Codex reports its cache-read count as a *subset*
+of `input_tokens` (it's already counted there), so only Codex's
+(always-zero) cache-write count is added. See
+`aggregate.agent_effective_total` for the exact rule.
+
+The raw, per-agent `headline_total` (`input + output + reasoning`, never
+including cache tokens) and the raw `cache_read_tokens`/`cache_write_tokens`
+counts are always both present in the private ledger and the published
+per-day JSON records — the flags above only control which figure a given
+command *displays* or *records*, not what's retained.
 
 ### Collection windows and repeat runs
 

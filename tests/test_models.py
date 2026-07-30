@@ -37,24 +37,42 @@ def test_normalized_record_rejects_an_unsupported_agent() -> None:
         )
 
 
-def test_token_usage_headline_is_input_output_and_reasoning_only() -> None:
-    usage = TokenUsage(input_tokens=11, output_tokens=7, reasoning_tokens=3)
+def test_token_usage_headline_excludes_cache_tokens() -> None:
+    usage = TokenUsage(
+        input_tokens=11,
+        output_tokens=7,
+        reasoning_tokens=3,
+        cache_read_tokens=999_999,
+        cache_write_tokens=999_999,
+    )
 
     assert usage.headline_total == 21
-    assert not hasattr(usage, "cache_read_tokens")
-    assert not hasattr(usage, "cache_write_tokens")
+    assert usage.cache_read_tokens == 999_999
+    assert usage.cache_write_tokens == 999_999
 
 
-@pytest.mark.parametrize("field_name", ["input_tokens", "output_tokens", "reasoning_tokens"])
+@pytest.mark.parametrize(
+    "field_name",
+    ["input_tokens", "output_tokens", "reasoning_tokens", "cache_read_tokens", "cache_write_tokens"],
+)
 def test_token_usage_rejects_negative_fields(field_name: str) -> None:
-    values = {"input_tokens": 1, "output_tokens": 2, "reasoning_tokens": 3}
+    values = {
+        "input_tokens": 1,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+        "cache_read_tokens": 4,
+        "cache_write_tokens": 5,
+    }
     values[field_name] = -1
 
     with pytest.raises(ValueError, match=field_name):
         TokenUsage(**values)
 
 
-@pytest.mark.parametrize("field_name", ["input_tokens", "output_tokens", "reasoning_tokens"])
+@pytest.mark.parametrize(
+    "field_name",
+    ["input_tokens", "output_tokens", "reasoning_tokens", "cache_read_tokens", "cache_write_tokens"],
+)
 @pytest.mark.parametrize("invalid_value", [1.5, True, False])
 def test_token_usage_rejects_non_integer_fields(
     field_name: str, invalid_value: object
@@ -63,6 +81,8 @@ def test_token_usage_rejects_non_integer_fields(
         "input_tokens": 1,
         "output_tokens": 2,
         "reasoning_tokens": 3,
+        "cache_read_tokens": 4,
+        "cache_write_tokens": 5,
     }
     values[field_name] = invalid_value
 

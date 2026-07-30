@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
 
 import pytest
@@ -75,6 +76,55 @@ def test_schema_creates_expected_ledger_tables(tmp_path) -> None:
         repo.close()
 
 
+def test_opening_a_legacy_db_without_cache_columns_adds_them_in_place(tmp_path) -> None:
+    db_path = tmp_path / "legacy.sqlite3"
+    legacy_connection = sqlite3.connect(db_path)
+    try:
+        legacy_connection.execute(
+            """
+            CREATE TABLE events (
+                fingerprint TEXT PRIMARY KEY,
+                agent TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                session_fingerprint TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                reasoning_tokens INTEGER,
+                observed_skill_name TEXT,
+                observed_mcp_server_name TEXT,
+                observed_mcp_tool_name TEXT,
+                source_status TEXT NOT NULL,
+                schema_version INTEGER NOT NULL
+            )
+            """
+        )
+        legacy_connection.execute(
+            """
+            INSERT INTO events (
+                fingerprint, agent, occurred_at, input_tokens, output_tokens,
+                reasoning_tokens, source_status, schema_version
+            ) VALUES ('fp-legacy', 'codex', ?, 10, 5, 0, 'available_with_activity', 1)
+            """,
+            (datetime(2026, 7, 5, tzinfo=UTC).isoformat(),),
+        )
+        legacy_connection.commit()
+    finally:
+        legacy_connection.close()
+
+    repo = LedgerRepository.open(db_path)
+    try:
+        columns = {row[1] for row in repo._connection.execute("PRAGMA table_info(events)")}
+        assert {"cache_read_tokens", "cache_write_tokens"} <= columns
+
+        [record] = repo.list_records()
+        assert record.fingerprint == "fp-legacy"
+        assert record.tokens.cache_read_tokens == 0
+        assert record.tokens.cache_write_tokens == 0
+        assert record.headline_total == 15
+    finally:
+        repo.close()
+
+
 def test_insert_and_list_round_trips_a_normalized_record(repository) -> None:
     record = _record(
         "fingerprint-one",
@@ -90,6 +140,25 @@ def test_insert_and_list_round_trips_a_normalized_record(repository) -> None:
     stored = repository.list_records()
     assert stored == [record]
     assert stored[0].session_fingerprint == "opaque-session-hash"
+
+
+def test_insert_and_list_round_trips_cache_tokens(repository) -> None:
+    record = _record(
+        "fingerprint-cache",
+        tokens=TokenUsage(
+            input_tokens=10,
+            output_tokens=5,
+            reasoning_tokens=1,
+            cache_read_tokens=5000,
+            cache_write_tokens=500,
+        ),
+    )
+
+    repository.insert_records([record])
+
+    [stored] = repository.list_records()
+    assert stored.tokens.cache_read_tokens == 5000
+    assert stored.tokens.cache_write_tokens == 500
 
 
 def test_session_fingerprint_round_trips_as_none_when_unset(repository) -> None:
@@ -254,3 +323,62 @@ def test_set_backfill_probed_start_persists_and_overwrites_per_agent(tmp_path) -
 
     assert claude_probe == datetime(2026, 1, 1, tzinfo=UTC)
     assert codex_probe == datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def test_cache_token_totals_by_agent_sums_per_agent(repository) -> None:
+    repository.insert_records(
+        [
+            _record(
+                "fp-1",
+                agent=SupportedAgent.CLAUDE_CODE,
+                tokens=TokenUsage(input_tokens=1, cache_read_tokens=100, cache_write_tokens=10),
+            ),
+            _record(
+                "fp-2",
+                agent=SupportedAgent.CLAUDE_CODE,
+                tokens=TokenUsage(input_tokens=1, cache_read_tokens=50, cache_write_tokens=5),
+            ),
+            _record(
+                "fp-3",
+                agent=SupportedAgent.CODEX,
+                tokens=TokenUsage(input_tokens=1, cache_read_tokens=7, cache_write_tokens=0),
+            ),
+        ]
+    )
+
+    totals = repository.cache_token_totals_by_agent()
+
+    assert totals[SupportedAgent.CLAUDE_CODE] == {"cache_read_tokens": 150, "cache_write_tokens": 15}
+    assert totals[SupportedAgent.CODEX] == {"cache_read_tokens": 7, "cache_write_tokens": 0}
+    assert totals[SupportedAgent.HERMES_AGENT] == {"cache_read_tokens": 0, "cache_write_tokens": 0}
+
+
+def test_cache_token_totals_by_agent_ignores_source_unavailable_markers(repository) -> None:
+    repository.insert_records(
+        [
+            _record(
+                "fp-unavailable",
+                agent=SupportedAgent.HERMES_AGENT,
+                tokens=None,
+                source_status=SourceStatus.SOURCE_UNAVAILABLE,
+            ),
+        ]
+    )
+
+    totals = repository.cache_token_totals_by_agent()
+
+    assert totals[SupportedAgent.HERMES_AGENT] == {"cache_read_tokens": 0, "cache_write_tokens": 0}
+
+
+def test_cache_token_totals_by_agent_returns_zero_for_empty_ledger(tmp_path) -> None:
+    repo = LedgerRepository.open(tmp_path / "ledger.sqlite3")
+    try:
+        totals = repo.cache_token_totals_by_agent()
+    finally:
+        repo.close()
+
+    assert totals == {
+        SupportedAgent.HERMES_AGENT: {"cache_read_tokens": 0, "cache_write_tokens": 0},
+        SupportedAgent.CLAUDE_CODE: {"cache_read_tokens": 0, "cache_write_tokens": 0},
+        SupportedAgent.CODEX: {"cache_read_tokens": 0, "cache_write_tokens": 0},
+    }

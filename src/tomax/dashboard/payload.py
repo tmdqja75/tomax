@@ -39,6 +39,7 @@ def build_payload(
     pie_top_n: int,
     bar_chart_threshold_days: int = 15,
     tmp_stage_dir: Path,
+    include_cache_tokens: bool = True,
 ) -> dict:
     """Produce the dashboard data.json dict from the chosen data source."""
     if all_devices:
@@ -55,4 +56,5 @@ def build_payload(
         today=today,
         pie_top_n=pie_top_n,
         bar_chart_threshold_days=bar_chart_threshold_days,
+        include_cache_tokens=include_cache_tokens,
     )

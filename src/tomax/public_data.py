@@ -18,7 +18,7 @@ from pathlib import Path
 from tomax.models import NormalizedUsageRecord, SourceStatus, SupportedAgent
 from tomax.privacy import PrivacyPolicy
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MAX_NAME_ENTRIES_PER_CATEGORY = 50
 OVERFLOW_BUCKET = "(other)"
@@ -107,6 +107,16 @@ def build_daily_record(
             for record in agent_records
             if record.tokens is not None
         )
+        cache_read_tokens = sum(
+            record.tokens.cache_read_tokens
+            for record in agent_records
+            if record.tokens is not None
+        )
+        cache_write_tokens = sum(
+            record.tokens.cache_write_tokens
+            for record in agent_records
+            if record.tokens is not None
+        )
         session_count = len(
             {
                 record.session_fingerprint
@@ -120,6 +130,8 @@ def build_daily_record(
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "reasoning_tokens": reasoning_tokens,
+            "cache_read_tokens": cache_read_tokens,
+            "cache_write_tokens": cache_write_tokens,
             "headline_total": input_tokens + output_tokens + reasoning_tokens,
             "session_count": session_count,
         }

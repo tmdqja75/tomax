@@ -45,6 +45,17 @@ See [README.md](README.md) for the user-facing guide.
     `index.html` for `--lang`), `ui_build.py` (on-demand UI build with caching).
   - `commands/` — one module per CLI command; `cli.py` wires them with Typer.
   - `ledger/`, `publish/`, `privacy.py`, `public_data.py`, `config.py`, `models.py`.
+    `ledger/repository.py` also tracks cache-read/cache-write tokens per
+    event (`LedgerRepository.cache_token_totals_by_agent()`) and the public
+    per-day record carries per-agent `cache_read_tokens`/`cache_write_tokens`
+    alongside `headline_total` (`input + output + reasoning`, never
+    including cache). `aggregate.agent_effective_total` computes the
+    cache-inclusive display total, skipping Codex's `cache_read_tokens`
+    since Codex reports it as a subset of `input_tokens` rather than
+    additional to it (unlike Claude Code/Hermes). `collect`,
+    `dashboard`, and `render` all include cache tokens by default and
+    accept `--exclude-cache-tokens` to opt out (`collect` stops recording
+    them at all; `dashboard`/`render` just stop displaying them).
 - `dashboard-ui/` — React + Vite + TypeScript source for the interactive dashboard.
   Tailwind v4 + shadcn wiring (`components.json`, `src/index.css`, `src/lib/utils.ts`)
   plus the [bklit](https://ui.bklit.com) chart registry (visx + `motion` +
