@@ -204,7 +204,9 @@ uv run tomax schedule remove
 
 Install a schedule only after `init`, GitHub authentication, and a manual
 publish have been verified, because scheduled runs can publish this device's
-sanitized daily aggregates.
+sanitized daily aggregates. The installed job preserves the `PATH` available
+during installation so Homebrew-provided `gh` and `git` remain available to
+`launchd`.
 
 ## Privacy boundary
 

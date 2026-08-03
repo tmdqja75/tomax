@@ -53,6 +53,18 @@ def test_build_plist_runs_collect_then_publish_via_the_given_executable(tmp_path
     assert program_arguments[4] == "/usr/local/bin/tomax"
 
 
+def test_build_plist_preserves_the_installer_path_for_publish_dependencies(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("PATH", "/opt/homebrew/bin:/usr/bin:/bin")
+
+    plist = launchd.build_plist(
+        executable="/usr/local/bin/tomax", daily_at="09:00", log_dir=tmp_path / "logs"
+    )
+
+    assert plist["EnvironmentVariables"] == {"PATH": "/opt/homebrew/bin:/usr/bin:/bin"}
+
+
 def test_build_plist_passes_an_unusual_executable_as_an_argument_not_shell_code(tmp_path: Path) -> None:
     executable = '/Applications/Agent Usage/bin/tomax; echo unsafe'
 

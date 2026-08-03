@@ -30,7 +30,7 @@ See [README.md](README.md) for the user-facing guide.
 | `dashboard` | Serve an interactive localhost chart dashboard (see below); supports `--lang en\|ko`. |
 | `publish` | Stage and push this device's sanitized aggregates (opt-in, `gh` auth). |
 | `init` | Local-only: record `OWNER/REPO` target, ensure device ID. |
-| `schedule` | Install/remove a `launchd` daily collect+publish job. |
+| `schedule` | Install/remove a `launchd` daily collect+publish job; preserves the installer `PATH` for `gh`/`git`. |
 
 ## Repository layout
 

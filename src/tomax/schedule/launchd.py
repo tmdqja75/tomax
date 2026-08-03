@@ -15,6 +15,7 @@ this is what makes the generated job equivalent to a user typing
 
 from __future__ import annotations
 
+import os
 import plistlib
 import subprocess
 from collections.abc import Callable
@@ -72,6 +73,7 @@ def build_plist(*, executable: str, daily_at: str, log_dir: Path) -> dict:
         ],
         "StartCalendarInterval": {"Hour": hour, "Minute": minute},
         "RunAtLoad": False,
+        "EnvironmentVariables": {"PATH": os.environ.get("PATH", os.defpath)},
         "StandardOutPath": str(log_dir / "scheduler.log"),
         "StandardErrorPath": str(log_dir / "scheduler.err.log"),
     }
