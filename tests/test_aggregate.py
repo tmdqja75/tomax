@@ -356,6 +356,31 @@ def test_daily_totals_sums_headline_total_across_agents_and_devices() -> None:
     assert totals["2026-07-11"] == 2
 
 
+def test_daily_totals_excluding_cache_subtracts_codex_cache_read_from_headline() -> None:
+    # Codex's headline_total (input + output + reasoning) already has its
+    # cache_read_tokens baked into input_tokens, unlike Claude Code/Hermes
+    # where cache reads are reported separately. Excluding cache tokens must
+    # therefore subtract them back out for Codex, not leave the total
+    # unchanged -- otherwise --exclude-cache-tokens is a no-op for Codex.
+    payloads = [
+        _payload(
+            device_id="device-a",
+            day=date(2026, 7, 10),
+            input_tokens=110,
+            output_tokens=5,
+            reasoning_tokens=1,
+            cache_read_tokens=100,
+            agent=SupportedAgent.CODEX,
+        ),
+    ]
+
+    with_cache = daily_totals(payloads, include_cache_tokens=True)
+    without_cache = daily_totals(payloads, include_cache_tokens=False)
+
+    assert with_cache["2026-07-10"] == 116
+    assert without_cache["2026-07-10"] == 16
+
+
 def test_daily_agent_totals_groups_per_agent_and_sums_devices() -> None:
     payloads = [
         _payload(
@@ -464,11 +489,15 @@ def test_daily_token_totals_keeps_cache_tokens_in_their_own_bucket() -> None:
     assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 120}
 
 
-def test_daily_token_totals_excludes_codex_cache_read_since_its_in_input_already() -> None:
+def test_daily_token_totals_splits_codex_cache_read_out_of_input() -> None:
+    # Codex's input_tokens already includes cache_read_tokens as a subset (110
+    # total input, 100 of which were cache reads) -- the cache bucket must
+    # pull that 100 back out of "input" rather than showing it in both places
+    # or dropping it from the chart entirely.
     payloads = [
         _payload(
             device_id="device-a",
-            input_tokens=10,
+            input_tokens=110,
             output_tokens=5,
             reasoning_tokens=1,
             cache_read_tokens=100,
@@ -479,7 +508,7 @@ def test_daily_token_totals_excludes_codex_cache_read_since_its_in_input_already
 
     totals = daily_token_totals(payloads)
 
-    assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 0}
+    assert totals["2026-07-10"] == {"input": 10, "output": 5, "reasoning": 1, "cache": 100}
 
 
 def test_daily_token_totals_cache_bucket_is_zero_when_excluded() -> None:

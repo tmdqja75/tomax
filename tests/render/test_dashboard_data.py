@@ -165,7 +165,11 @@ def test_exclude_cache_tokens_zeroes_the_cache_bucket_and_reverts_totals():
     assert {"agent": "claude_code", "tokens": 150} in data["agents"]
 
 
-def test_codex_cache_read_is_excluded_from_the_cache_bucket_since_its_already_in_input():
+def test_codex_cache_read_is_split_out_of_input_into_the_cache_bucket():
+    # Codex's input_tokens (100) already includes its cache_read_tokens (20)
+    # as a subset, so the chart's "input" bucket must show the non-cached
+    # remainder (80) while "cache" shows the 20 -- not double-count it in
+    # "input" while dropping it from "cache" entirely.
     payloads = [
         _payload(
             "2026-07-10",
@@ -178,6 +182,8 @@ def test_codex_cache_read_is_excluded_from_the_cache_bucket_since_its_already_in
     data = build_dashboard_data(payloads, today=date(2026, 7, 10), window_days=14)
 
     assert data["tokens"] == [
-        {"date": "2026-07-10", "input": 100, "output": 50, "reasoning": 0, "cache": 0}
+        {"date": "2026-07-10", "input": 80, "output": 50, "reasoning": 0, "cache": 20}
     ]
+    # headline_total (150) already has the cache read baked in, so the
+    # ring-chart total is unaffected by the input/cache split above.
     assert {"agent": "codex", "tokens": 150} in data["agents"]

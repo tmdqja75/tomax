@@ -12,9 +12,11 @@ as its own delta from zero, rather than producing a negative delta.
 Unlike Claude Code, Codex's usage payload does report a separate
 ``reasoning_output_tokens`` field, so Codex's ``reasoning_tokens`` is real,
 not always zero. It also reports ``cached_input_tokens`` (a subset of
-``input_tokens``, diffed the same way), mapped to ``cache_read_tokens``.
-Codex has no separate cache-write signal, so ``cache_write_tokens`` is
-always 0 here, unlike Claude Code.
+``input_tokens``, diffed the same way), mapped to ``cache_read_tokens``, and
+``cache_write_input_tokens`` (diffed the same way), mapped to
+``cache_write_tokens``. Older rollout files predate the
+``cache_write_input_tokens`` field, so it defaults to 0 when absent rather
+than rejecting the event.
 
 MCP tool calls are recognized by the same ``mcp__<server>__<tool>``
 convention used by Hermes and Claude Code. Codex has no confirmed
@@ -118,7 +120,7 @@ def _session_id_from_events(events: list[dict]) -> str:
     return ""
 
 
-def _extract_total_usage(info: object) -> tuple[int, int, int, int] | None:
+def _extract_total_usage(info: object) -> tuple[int, int, int, int, int] | None:
     if not isinstance(info, dict):
         return None
     total = info.get("total_token_usage")
@@ -131,17 +133,26 @@ def _extract_total_usage(info: object) -> tuple[int, int, int, int] | None:
     # Claude Code's cache_read_input_tokens) -- tracked here purely as a separate
     # cache-read counter, never folded into input_tokens or the headline total.
     cached_input_tokens = total.get("cached_input_tokens")
-    values = (input_tokens, output_tokens, reasoning_tokens, cached_input_tokens)
+    # cache_write_input_tokens is absent from rollout files predating it; default
+    # to 0 rather than rejecting the whole event over a missing optional field.
+    cache_write_input_tokens = total.get("cache_write_input_tokens", 0)
+    values = (
+        input_tokens,
+        output_tokens,
+        reasoning_tokens,
+        cached_input_tokens,
+        cache_write_input_tokens,
+    )
     if any(not isinstance(v, int) or isinstance(v, bool) for v in values):
         return None
-    return input_tokens, output_tokens, reasoning_tokens, cached_input_tokens
+    return input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cache_write_input_tokens
 
 
 def _token_records_for_session(
     events: list[dict], window: TimeWindow, session_id: str
 ) -> list[NormalizedUsageRecord]:
     records = []
-    previous_total: tuple[int, int, int, int] | None = None
+    previous_total: tuple[int, int, int, int, int] | None = None
     event_index = 0
 
     for event in events:
@@ -172,7 +183,7 @@ def _token_records_for_session(
 
         previous_total = current_total
 
-        if delta == (0, 0, 0, 0):
+        if delta == (0, 0, 0, 0, 0):
             continue
 
         occurred_at = _parse_timestamp(event.get("timestamp"))
@@ -184,6 +195,7 @@ def _token_records_for_session(
             output_tokens=delta[1],
             reasoning_tokens=delta[2],
             cache_read_tokens=delta[3],
+            cache_write_tokens=delta[4],
         )
         status = (
             SourceStatus.AVAILABLE_WITH_ACTIVITY

@@ -38,7 +38,9 @@ _AGENT_TOTAL_FIELDS = (
 # see adapters/codex.py), unlike Claude Code and Hermes, which report it
 # separately from input_tokens. So a cache-inclusive total must skip
 # cache_read_tokens for Codex specifically, to avoid double-counting those
-# tokens. cache_write_tokens has no such exception (Codex's is always 0).
+# tokens -- and a cache-exclusive total must instead subtract it back out of
+# headline_total, since headline_total already has it baked in. cache_write_tokens
+# has no such exception: it's additive to headline_total for every agent.
 _AGENTS_WITH_ADDITIVE_CACHE_READ = frozenset(
     {SupportedAgent.CLAUDE_CODE.value, SupportedAgent.HERMES_AGENT.value}
 )
@@ -49,16 +51,19 @@ def agent_effective_total(
 ) -> int:
     """Return the agent's displayed total: headline_total, plus cache tokens by default.
 
-    ``include_cache_tokens=False`` reproduces the pre-cache-tracking
-    behavior (``headline_total`` alone), for callers/flags that want to
-    exclude prompt-cache tokens from the displayed total.
+    ``include_cache_tokens=False`` excludes prompt-cache tokens from the
+    displayed total: for Claude Code/Hermes that's ``headline_total`` alone
+    (cache reads were never in it); for Codex, which folds cache reads into
+    ``headline_total`` at the source, that means subtracting them back out.
     """
     total = agent_data["headline_total"]
-    if not include_cache_tokens:
-        return total
     if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
-        total += agent_data["cache_read_tokens"]
-    total += agent_data["cache_write_tokens"]
+        if include_cache_tokens:
+            total += agent_data["cache_read_tokens"]
+    elif not include_cache_tokens:
+        total -= agent_data["cache_read_tokens"]
+    if include_cache_tokens:
+        total += agent_data["cache_write_tokens"]
     return total
 _COUNTER_CATEGORIES = ("skills", "mcp_servers", "mcp_tools")
 
@@ -337,11 +342,13 @@ def daily_token_totals(
 
     Cache tokens are kept in their own ``"cache"`` bucket, separate from
     ``"input"`` — not folded together — so a stacked chart can show cache
-    tokens as their own segment. By default (``include_cache_tokens=True``)
-    that bucket sums cache-read plus cache-write, except Codex's cache-read
-    count, which is already inside its ``input_tokens`` (see
-    :func:`agent_effective_total`); ``include_cache_tokens=False`` reports
-    the bucket as ``0`` instead of omitting the key.
+    tokens as their own segment. Codex's cache-read count is a subset of its
+    ``input_tokens`` at the source (see :func:`agent_effective_total`), so
+    it's split back out of the ``"input"`` bucket here first; every agent's
+    cache-read then adds to ``"cache"`` the same way. By default
+    (``include_cache_tokens=True``) that bucket sums cache-read plus
+    cache-write; ``include_cache_tokens=False`` reports the bucket as ``0``
+    instead of omitting the key.
     """
     totals: dict[str, dict[str, int]] = {}
     has_available_source: dict[str, bool] = {}
@@ -355,12 +362,15 @@ def daily_token_totals(
             if agent_data["source_status"] == SourceStatus.SOURCE_UNAVAILABLE.value:
                 continue
             has_available_source[date_str] = True
-            day_totals["input"] += agent_data["input_tokens"]
+            input_tokens = agent_data["input_tokens"]
+            cache_read_tokens = agent_data["cache_read_tokens"]
+            if agent_name not in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+                input_tokens -= cache_read_tokens
+            day_totals["input"] += input_tokens
             day_totals["output"] += agent_data["output_tokens"]
             day_totals["reasoning"] += agent_data["reasoning_tokens"]
             if include_cache_tokens:
-                if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
-                    day_totals["cache"] += agent_data["cache_read_tokens"]
+                day_totals["cache"] += cache_read_tokens
                 day_totals["cache"] += agent_data["cache_write_tokens"]
 
     return {
