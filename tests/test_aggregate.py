@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from tomax.aggregate import (
     MAX_PAYLOAD_BYTES,
+    agent_available_date_range,
     aggregate_records,
     daily_agent_totals,
     daily_token_totals,
@@ -277,6 +278,36 @@ def test_rolling_window_selects_only_the_last_n_days() -> None:
     assert (TODAY - timedelta(days=13)).isoformat() in selected_dates
     assert (TODAY - timedelta(days=14)).isoformat() not in selected_dates
     assert (TODAY - timedelta(days=30)).isoformat() not in selected_dates
+
+
+def test_agent_available_date_range_finds_first_and_last_available_day() -> None:
+    payloads = [
+        _payload(day=date(2026, 7, 1), agent=SupportedAgent.CODEX),
+        _payload(
+            day=date(2026, 7, 5),
+            agent=SupportedAgent.CLAUDE_CODE,
+            status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+        ),
+        _payload(
+            day=date(2026, 7, 10),
+            agent=SupportedAgent.CLAUDE_CODE,
+            status=SourceStatus.AVAILABLE_WITH_ZERO_ACTIVITY,
+            input_tokens=0,
+            output_tokens=0,
+            reasoning_tokens=0,
+        ),
+        _payload(day=date(2026, 7, 15), agent=SupportedAgent.CODEX),
+    ]
+
+    result = agent_available_date_range(payloads, SupportedAgent.CLAUDE_CODE.value)
+
+    assert result == (date(2026, 7, 5), date(2026, 7, 10))
+
+
+def test_agent_available_date_range_returns_none_when_never_available() -> None:
+    payloads = [_payload(day=date(2026, 7, 1), agent=SupportedAgent.CODEX)]
+
+    assert agent_available_date_range(payloads, SupportedAgent.CLAUDE_CODE.value) is None
 
 
 def test_lifetime_aggregation_includes_all_valid_days() -> None:

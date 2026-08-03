@@ -13,6 +13,7 @@ from tomax.aggregate import (
     agent_effective_total,
     aggregate_records,
     daily_agent_totals,
+    daily_counter_totals,
     daily_token_totals,
     daily_totals,
 )
@@ -78,6 +79,8 @@ def build_dashboard_data(
     ]
 
     agent_totals_by_day = daily_agent_totals(valid_payloads, include_cache_tokens=include_cache_tokens)
+    skills_by_day = daily_counter_totals(valid_payloads, "skills")
+    mcp_by_day = daily_counter_totals(valid_payloads, "mcp_servers")
     heatmap = [
         {
             "date": day,
@@ -87,6 +90,12 @@ def build_dashboard_data(
                 for agent_name, agent_total in sorted(
                     agent_totals_by_day.get(day, {}).items(), key=lambda kv: -kv[1]
                 )
+            ],
+            "bySkill": [
+                {"name": name, "count": count} for name, count in rank_usage(skills_by_day.get(day, {}))
+            ],
+            "byMcp": [
+                {"name": name, "count": count} for name, count in rank_usage(mcp_by_day.get(day, {}))
             ],
         }
         for day, total in sorted(
@@ -102,4 +111,5 @@ def build_dashboard_data(
         "skills": _pie(aggregated["skills"], pie_top_n),
         "mcp": _pie(aggregated["mcp_servers"], pie_top_n),
         "heatmap": heatmap,
+        "pieTopN": pie_top_n,
     }

@@ -207,6 +207,26 @@ def rolling_window(payloads: list[dict], *, end: date, days: int = 14) -> list[d
     return select_date_range(payloads, start=start, end=end)
 
 
+def agent_available_date_range(payloads: list[dict], agent: str) -> tuple[date, date] | None:
+    """Return the first and last date any device reports ``agent`` as available.
+
+    A day counts as available if at least one device's payload has that
+    agent's ``source_status`` other than ``source_unavailable``. Returns
+    ``None`` if the agent was never available in any payload.
+    """
+    available_dates: list[date] = []
+    for payload in payloads:
+        status = payload.get("agents", {}).get(agent, {}).get("source_status")
+        if status is None or status == SourceStatus.SOURCE_UNAVAILABLE.value:
+            continue
+        parsed = _parse_date(payload.get("date"))
+        if parsed is not None:
+            available_dates.append(parsed)
+    if not available_dates:
+        return None
+    return min(available_dates), max(available_dates)
+
+
 def _best_status(current: str | None, candidate: str) -> str:
     if current is None:
         return candidate
@@ -327,6 +347,20 @@ def daily_agent_totals(
             if total == 0:
                 continue
             day_totals[agent_name] = day_totals.get(agent_name, 0) + total
+    return totals
+
+
+def daily_counter_totals(payloads: list[dict], field: str) -> dict[str, dict[str, int]]:
+    """Sum a name-keyed counter field (``skills`` or ``mcp_servers``) per day.
+
+    Same no-data-means-absent contract as :func:`daily_totals` for dates.
+    """
+    totals: dict[str, dict[str, int]] = {}
+    for payload in payloads:
+        date_str = payload["date"]
+        day_totals = totals.setdefault(date_str, {})
+        for name, count in payload.get(field, {}).items():
+            day_totals[name] = day_totals.get(name, 0) + count
     return totals
 
 

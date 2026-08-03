@@ -27,7 +27,7 @@ See [README.md](README.md) for the user-facing guide.
 | `doctor` | Read-only diagnostics; no ledger writes, no checkpoint advance. |
 | `collect` | Read sources and persist normalized records (`--dry-run` to preview). |
 | `render` | Write a fully local dashboard preview screenshot (no network). |
-| `dashboard` | Serve an interactive localhost chart dashboard (see below); supports `--lang en\|ko`. |
+| `dashboard` | Collects fresh local usage (like `collect`), then serves an interactive localhost chart dashboard (see below); supports `--lang en\|ko`. `--all-devices` merges the freshly collected local ledger with every *other* device's last-published data (own remote copy excluded). `--claude-code-only-range` trims every chart's payloads to the span Claude Code has data for (`aggregate.agent_available_date_range` + `select_date_range`), across all agents, not just Claude Code. |
 | `publish` | Stage and push this device's sanitized aggregates (opt-in, `gh` auth). |
 | `init` | Local-only: record `OWNER/REPO` target, ensure device ID. |
 | `schedule` | Install/remove a `launchd` daily collect+publish job; preserves the installer `PATH` for `gh`/`git`. |
@@ -66,10 +66,13 @@ See [README.md](README.md) for the user-facing guide.
   - `src/charts/` — thin leaf wrappers that feed `data.json` into bklit:
     `TokenArea`/`TokenBar` (Area/stacked-Bar chart + tooltip, switched by
     `TokenChart` on `data.tokensChartType`), `DateRangeFilter` (native date
-    inputs, clamped to the loaded token date range, filters the Total Token
-    Usage chart client-side — `App.tsx` owns the `{from, to}` state), `AgentRing`
-    (RingChart + Legend), `UsageDonut` (PieChart, Skills + MCP), plus the custom
-    `CalendarHeatmap` and the `names.ts` label/palette map.
+    inputs, clamped to the loaded token date range — `App.tsx` owns the
+    `{from, to}` state and filters the Total Token Usage chart, the
+    `AgentRing`, both `UsageDonut` pies, and the `CalendarHeatmap` all from
+    that one range, re-deriving the ring/pie totals from `heatmap[].byAgent`/
+    `bySkill`/`byMcp` and re-bucketing top-N client-side with `data.pieTopN`),
+    `AgentRing` (RingChart + Legend), `UsageDonut` (PieChart, Skills + MCP),
+    plus the custom `CalendarHeatmap` and the `names.ts` label/palette map.
   - `src/i18n.ts` — translation lookup and locale-aware number/date formatting,
     driven by `window.__LANG__` (`en` or `ko`).
   Built on demand by `dashboard/ui_build.py`; `node_modules/` and `dist/` are gitignored.
@@ -98,8 +101,12 @@ See [README.md](README.md) for the user-facing guide.
   rendering — keep those intact.
 - `data.json` contract keys: `window {start,end}`, `tokens [{date,input,output,
   reasoning}]`, `tokensChartType ("bar"|"area")`, `agents [{agent,tokens}]`,
-  `skills [{name,count}]`, `mcp [{name,count}]`,
-  `heatmap [{date,tokens,byAgent [{agent,tokens}]}]`.
+  `skills [{name,count}]`, `mcp [{name,count}]`, `heatmap [{date,tokens,
+  byAgent [{agent,tokens}]}, bySkill [{name,count}], byMcp [{name,count}]]`,
+  `pieTopN`. `bySkill`/`byMcp` are unbucketed per-day counts (no `Other`
+  folding) so the dashboard can re-sum them over any date-picker range and
+  re-bucket client-side with `pieTopN` — bucketing per day first would make
+  cross-day `Other` sums lossy.
 - Skills/MCP pies bucket beyond `--pie-top-n` (default 6) into one `Other` entry.
 - `tokensChartType` is computed server-side in `render/dashboard_data.py` from
   the window span vs. `AppConfig.bar_chart_threshold_days` (default 15, set via
