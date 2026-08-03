@@ -8,6 +8,8 @@ from typer.testing import CliRunner
 
 import tomax.cli as cli_module
 from tomax.cli import app
+from tomax.commands.collect import AgentCollectionResult
+from tomax.models import SourceStatus, SupportedAgent
 
 runner = CliRunner()
 
@@ -206,6 +208,69 @@ def test_dashboard_includes_cache_tokens_by_default(tmp_path, monkeypatch) -> No
 
     assert result.exit_code == 0
     assert captured["include_cache_tokens"] is True
+
+
+def test_dashboard_claude_code_only_range_flag_is_threaded_through(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+
+    def _fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(cli_module.dashboard_command, "run", _fake_run)
+
+    result = runner.invoke(app, ["dashboard", "--no-open", "--claude-code-only-range"])
+
+    assert result.exit_code == 0
+    assert captured["claude_code_only_range"] is True
+
+
+def test_dashboard_claude_code_only_range_defaults_to_false(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+    captured = {}
+
+    def _fake_run(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(cli_module.dashboard_command, "run", _fake_run)
+
+    result = runner.invoke(app, ["dashboard", "--no-open"])
+
+    assert result.exit_code == 0
+    assert captured["claude_code_only_range"] is False
+
+
+def test_dashboard_logs_per_agent_collection_results(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+
+    def _fake_run(**kwargs):
+        kwargs["on_collected"](
+            [
+                AgentCollectionResult(
+                    agent=SupportedAgent.CLAUDE_CODE,
+                    status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+                    records_observed=5,
+                    records_inserted=3,
+                ),
+                AgentCollectionResult(
+                    agent=SupportedAgent.CODEX,
+                    status=SourceStatus.SOURCE_UNAVAILABLE,
+                    records_observed=0,
+                    records_inserted=0,
+                ),
+            ]
+        )
+
+    monkeypatch.setattr(cli_module.dashboard_command, "run", _fake_run)
+
+    result = runner.invoke(app, ["dashboard", "--no-open"])
+
+    assert result.exit_code == 0
+    assert "claude_code: available_with_activity (observed 5, inserted 3)" in result.stdout
+    assert "codex: source_unavailable (observed 0, inserted 0)" in result.stdout
 
 
 def test_dashboard_exclude_cache_tokens_flag_is_threaded_through(tmp_path, monkeypatch) -> None:

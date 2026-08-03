@@ -127,6 +127,15 @@ def config_bar_chart_threshold(
     typer.echo(f"tomax: bar chart threshold set to {days} day(s)")
 
 
+def _echo_collect_results(results: list[collect_command.AgentCollectionResult]) -> None:
+    for result in results:
+        status = result.status.value if result.status is not None else "up to date"
+        typer.echo(
+            f"  {result.agent.value}: {status} "
+            f"(observed {result.records_observed}, inserted {result.records_inserted})"
+        )
+
+
 @app.command()
 def collect(
     dry_run: bool = typer.Option(
@@ -152,12 +161,7 @@ def collect(
         dry_run=dry_run,
         include_cache_tokens=not exclude_cache_tokens,
     )
-    for result in results:
-        status = result.status.value if result.status is not None else "up to date"
-        typer.echo(
-            f"  {result.agent.value}: {status} "
-            f"(observed {result.records_observed}, inserted {result.records_inserted})"
-        )
+    _echo_collect_results(results)
     if dry_run:
         typer.echo("tomax: dry run, nothing written")
 
@@ -232,6 +236,11 @@ def dashboard(
         "--exclude-cache-tokens",
         help="Exclude prompt cache tokens from the displayed totals.",
     ),
+    claude_code_only_range: bool = typer.Option(
+        False,
+        "--claude-code-only-range",
+        help="Trim every chart to the date range Claude Code has data for.",
+    ),
 ) -> None:
     """Serve an interactive localhost usage dashboard (local data, or --all-devices)."""
     if pie_top_n < 1:
@@ -252,8 +261,14 @@ def dashboard(
                 ui_dir=dashboard_command.UI_DIR,
                 force_build=rebuild,
                 today=now.date(),
+                now=now,
                 tmp_stage_dir=Path(tmp),
                 include_cache_tokens=not exclude_cache_tokens,
+                claude_code_only_range=claude_code_only_range,
+                hermes_db=DEFAULT_HERMES_STATE_DB,
+                claude_projects_dir=DEFAULT_CLAUDE_CODE_PROJECTS_DIR,
+                codex_sessions_dir=DEFAULT_CODEX_SESSIONS_DIR,
+                on_collected=_echo_collect_results,
             )
         except dashboard_command.DashboardError as error:
             typer.echo(f"tomax: {error}")

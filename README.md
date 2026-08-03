@@ -67,6 +67,15 @@ Omit `--output-dir` to write the preview alongside the private ledger.
 uv run tomax dashboard
 ```
 
+The command always collects fresh local usage first (the same collection
+`tomax collect` does), so the ledger is up to date before the payload is
+built. Without `--all-devices`, the dashboard reflects that just-updated
+local ledger. With `--all-devices`, it merges the just-collected local data
+with every *other* device's last-published data (shallow-cloned from the
+configured profile repository, never the GitHub API) — this device's own
+data always comes from the fresh local ledger rather than its possibly-stale
+published copy.
+
 This builds the payload, compiles the UI if needed, starts the server, and
 opens your browser. Press Ctrl-C to stop.
 
@@ -88,8 +97,9 @@ The charts are [bklit](https://ui.bklit.com) components (built on visx +
 
 Flags:
 
-- `--all-devices` — aggregate multi-device data by shallow-cloning the
-  configured profile repository (never the GitHub API), instead of local data.
+- `--all-devices` — merge this device's freshly collected local data with
+  every other device's data, shallow-cloned from the configured profile
+  repository (never the GitHub API).
 - `--port` — localhost port to serve on (default `8000`).
 - `--no-open` — do not open a browser automatically.
 - `--rebuild` — force a fresh UI build even if the cached build looks current.
@@ -100,6 +110,9 @@ Flags:
 - `--exclude-cache-tokens` — exclude prompt cache-read/cache-write tokens
   from the displayed totals (see [Prompt cache token
   tracking](#prompt-cache-token-tracking)). Included by default.
+- `--claude-code-only-range` — trim every chart to the first-to-last date
+  Claude Code has data for, dropping other agents' data outside that span
+  too (not just Claude Code's). Off by default.
 
 `tomax render` accepts the same `--exclude-cache-tokens` flag for its
 screenshot/README preview.

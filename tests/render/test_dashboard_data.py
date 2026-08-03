@@ -78,13 +78,25 @@ def test_build_dashboard_data_shapes_every_section():
             "date": "2026-07-10",
             "tokens": 150,
             "byAgent": [{"agent": "claude_code", "tokens": 150}],
+            "bySkill": [
+                {"name": "brainstorming", "count": 3},
+                {"name": "tdd", "count": 2},
+                {"name": "graphify", "count": 1},
+            ],
+            "byMcp": [
+                {"name": "gmail", "count": 4},
+                {"name": "calendar", "count": 1},
+            ],
         },
         {
             "date": "2026-07-11",
             "tokens": 17,
             "byAgent": [{"agent": "codex", "tokens": 17}],
+            "bySkill": [],
+            "byMcp": [],
         },
     ]
+    assert data["pieTopN"] == 2
 
 
 def test_build_dashboard_data_tokens_are_not_truncated_past_window_days():
