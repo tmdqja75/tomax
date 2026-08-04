@@ -27,6 +27,7 @@ def _record(
     agent: SupportedAgent = SupportedAgent.CLAUDE_CODE,
     occurred_at: datetime = datetime(2026, 7, 5, 12, 0, tzinfo=UTC),
     session_fingerprint: str | None = None,
+    model: str | None = None,
     tokens: TokenUsage | None = TokenUsage(input_tokens=10, output_tokens=5, reasoning_tokens=1),
     source_status: SourceStatus = SourceStatus.AVAILABLE_WITH_ACTIVITY,
     observed_skill_name: str | None = None,
@@ -38,6 +39,7 @@ def _record(
         occurred_at=occurred_at,
         fingerprint=fingerprint,
         session_fingerprint=session_fingerprint,
+        model=model,
         tokens=tokens,
         observed_skill_name=observed_skill_name,
         observed_mcp_server_name=observed_mcp_server_name,
@@ -140,6 +142,87 @@ def test_insert_and_list_round_trips_a_normalized_record(repository) -> None:
     stored = repository.list_records()
     assert stored == [record]
     assert stored[0].session_fingerprint == "opaque-session-hash"
+
+
+def test_insert_and_list_round_trips_the_model(repository) -> None:
+    record = _record("fingerprint-model", model="claude-sonnet-5")
+
+    repository.insert_records([record])
+
+    [stored] = repository.list_records()
+    assert stored.model == "claude-sonnet-5"
+
+
+def test_opening_a_legacy_db_without_the_model_column_adds_it_in_place(tmp_path) -> None:
+    db_path = tmp_path / "legacy.sqlite3"
+    legacy_connection = sqlite3.connect(db_path)
+    try:
+        legacy_connection.execute(
+            """
+            CREATE TABLE events (
+                fingerprint TEXT PRIMARY KEY,
+                agent TEXT NOT NULL,
+                occurred_at TEXT NOT NULL,
+                session_fingerprint TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                reasoning_tokens INTEGER,
+                cache_read_tokens INTEGER,
+                cache_write_tokens INTEGER,
+                observed_skill_name TEXT,
+                observed_mcp_server_name TEXT,
+                observed_mcp_tool_name TEXT,
+                source_status TEXT NOT NULL,
+                schema_version INTEGER NOT NULL
+            )
+            """
+        )
+        legacy_connection.execute(
+            """
+            INSERT INTO events (
+                fingerprint, agent, occurred_at, input_tokens, output_tokens,
+                reasoning_tokens, source_status, schema_version
+            ) VALUES ('fp-legacy', 'codex', ?, 10, 5, 0, 'available_with_activity', 1)
+            """,
+            (datetime(2026, 7, 5, tzinfo=UTC).isoformat(),),
+        )
+        legacy_connection.commit()
+    finally:
+        legacy_connection.close()
+
+    repo = LedgerRepository.open(db_path)
+    try:
+        columns = {row[1] for row in repo._connection.execute("PRAGMA table_info(events)")}
+        assert "model" in columns
+
+        [record] = repo.list_records()
+        assert record.model is None
+    finally:
+        repo.close()
+
+
+def test_backfill_models_fills_only_rows_missing_a_model(repository) -> None:
+    repository.insert_records(
+        [
+            _record("fp-no-model"),
+            _record("fp-has-model", model="already-set"),
+        ]
+    )
+
+    backfilled = repository.backfill_models(
+        {"fp-no-model": "claude-sonnet-5", "fp-has-model": "should-not-overwrite"}
+    )
+
+    stored = {r.fingerprint: r.model for r in repository.list_records()}
+    assert backfilled == 1
+    assert stored["fp-no-model"] == "claude-sonnet-5"
+    assert stored["fp-has-model"] == "already-set"
+
+
+def test_backfill_models_ignores_unknown_fingerprints(repository) -> None:
+    backfilled = repository.backfill_models({"fp-does-not-exist": "claude-sonnet-5"})
+
+    assert backfilled == 0
 
 
 def test_insert_and_list_round_trips_cache_tokens(repository) -> None:

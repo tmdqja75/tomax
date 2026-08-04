@@ -110,6 +110,7 @@ def test_normalized_record_keeps_only_safe_metadata_and_normalizes_utc() -> None
         "occurred_at",
         "fingerprint",
         "session_fingerprint",
+        "model",
         "tokens",
         "observed_skill_name",
         "observed_mcp_server_name",

@@ -3,9 +3,10 @@
 Aggregates a device's normalized usage records for a single UTC calendar
 day into the public JSON record published at
 ``data/v1/devices/<device-id>/<YYYY-MM-DD>.json``. Contains only schema
-metadata, a checksum, safe per-agent token/session totals and status, and
-sanitized skill/MCP counters — never raw events, fingerprints, real
-session identity, or anything :mod:`tomax.privacy` would hide.
+metadata, a checksum, safe per-agent token/session totals and status,
+sanitized skill/MCP counters, and a per-model token counter — never raw
+events, fingerprints, real session identity, or anything
+:mod:`tomax.privacy` would hide.
 """
 
 from __future__ import annotations
@@ -92,6 +93,7 @@ def build_daily_record(
     skills: dict[str, int] = {}
     mcp_servers: dict[str, int] = {}
     mcp_tools: dict[str, int] = {}
+    models: dict[str, int] = {}
 
     for agent in SupportedAgent:
         agent_records = [record for record in day_records if record.agent is agent]
@@ -137,6 +139,11 @@ def build_daily_record(
         }
 
         for record in agent_records:
+            if record.model and record.tokens is not None:
+                # Model names are provider-assigned identifiers, not
+                # user-authored strings, so they don't go through
+                # policy.sanitize() the way skill/MCP names do.
+                models[record.model] = models.get(record.model, 0) + record.tokens.headline_total
             if record.observed_skill_name:
                 name = policy.sanitize(record.observed_skill_name)
                 skills[name] = skills.get(name, 0) + 1
@@ -156,6 +163,7 @@ def build_daily_record(
         "skills": _cap_counter(skills),
         "mcp_servers": _cap_counter(mcp_servers),
         "mcp_tools": _cap_counter(mcp_tools),
+        "models": _cap_counter(models),
     }
     payload["checksum"] = _checksum(payload)
     return payload

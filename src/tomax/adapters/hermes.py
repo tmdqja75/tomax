@@ -114,6 +114,7 @@ def _collect_token_records(
                     row["task"],
                 ),
                 session_fingerprint=_session_fingerprint(row["session_id"]),
+                model=row["model"],
                 tokens=tokens,
                 source_status=status,
             )

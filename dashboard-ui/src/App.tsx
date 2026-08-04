@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AgentRing } from "./charts/AgentRing";
 import { CalendarHeatmap } from "./charts/CalendarHeatmap";
 import { DateRangeFilter } from "./charts/DateRangeFilter";
+import { ModelBar } from "./charts/ModelBar";
 import { TokenChart } from "./charts/TokenChart";
 import { UsageDonut } from "./charts/UsageDonut";
 import { parseISODate, windowDateFmt } from "@/components/charts/chart-formatters";
@@ -13,6 +14,7 @@ type HeatDatum = {
   byAgent?: { agent: string; tokens: number }[];
   bySkill?: { name: string; count: number }[];
   byMcp?: { name: string; count: number }[];
+  byModel?: { name: string; count: number }[];
 };
 
 type Data = {
@@ -22,6 +24,7 @@ type Data = {
   agents: { agent: string; tokens: number }[];
   skills: { name: string; count: number }[];
   mcp: { name: string; count: number }[];
+  models: { name: string; count: number }[];
   heatmap: HeatDatum[];
   pieTopN: number;
 };
@@ -103,6 +106,11 @@ export default function App() {
     [filteredHeatmap, data?.pieTopN],
   );
 
+  const filteredModels = useMemo(
+    () => [...sumCounts(filteredHeatmap, (d) => d.byModel)].map(([name, count]) => ({ name, count })),
+    [filteredHeatmap],
+  );
+
   if (error) return <div className="dashboard empty">{t("state.error")} {error}</div>;
   if (!data) return <div className="dashboard empty">{t("state.loading")}</div>;
 
@@ -130,6 +138,10 @@ export default function App() {
       <section className="block">
         <h2>{t("title.usageByAgent")}</h2>
         <AgentRing data={filteredAgents} />
+      </section>
+      <section className="block">
+        <h2>{t("title.modelUsage")}</h2>
+        <ModelBar data={filteredModels} />
       </section>
       <div className="row-two">
         <section className="block">

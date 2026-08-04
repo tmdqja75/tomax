@@ -64,6 +64,16 @@ def token_count_event(
     }
 
 
+def turn_context_event(timestamp: str, *, model: str) -> dict:
+    return {
+        "timestamp": timestamp,
+        "type": "turn_context",
+        "payload": {
+            "model": model,
+        },
+    }
+
+
 def function_call_event(timestamp: str, *, name: str, call_id: str) -> dict:
     return {
         "timestamp": timestamp,

@@ -17,6 +17,14 @@ supplied by the caller rather than
 computed here, the same explicit-time convention used throughout this
 project (see e.g. ``render_dashboard``'s ``today``/``generated_at``), so
 collection stays deterministic and testable.
+
+``backfill_all_models``/``backfill_agent_models`` are a separate, narrower
+entry point: they patch the ``model`` column into rows that were already
+ledgered before model tracking existed, by re-reading full source history
+and matching on fingerprint. They never insert new rows or move
+checkpoints — a plain re-``collect`` never revisits already-ledgered
+fingerprints (``INSERT OR IGNORE``), so this is the only path that fills
+``model`` in for historical rows.
 """
 
 from __future__ import annotations
@@ -48,6 +56,15 @@ _STATUS_PRECEDENCE = (
     SourceStatus.AVAILABLE_WITH_ZERO_ACTIVITY,
     SourceStatus.SOURCE_UNAVAILABLE,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class AgentBackfillResult:
+    """The outcome of patching ``model`` into one agent's already-ledgered rows."""
+
+    agent: SupportedAgent
+    records_scanned: int
+    records_backfilled: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +217,67 @@ def collect_agent(
     return AgentCollectionResult(
         agent=agent, status=status, records_observed=len(records), records_inserted=inserted
     )
+
+
+def backfill_agent_models(
+    agent: SupportedAgent,
+    adapter_collect: AdapterCollect,
+    source_path: Path,
+    repository: LedgerRepository,
+    *,
+    now: datetime,
+    configured_start: datetime = DEFAULT_INITIAL_START,
+) -> AgentBackfillResult:
+    """Patch ``model`` into already-ledgered rows that predate model tracking.
+
+    Re-reads the full local source history (``configured_start``..``now``,
+    read-only) and matches the returned records back to existing ledger
+    rows by fingerprint via :meth:`LedgerRepository.backfill_models`, which
+    only fills a still-unset ``model`` column — this never inserts a new
+    row and never overwrites any other field, so it's safe to run
+    repeatedly (a fully-backfilled ledger just backfills 0 rows).
+    """
+    window = TimeWindow(start=configured_start, end=now)
+    records = adapter_collect(source_path, window)
+    models_by_fingerprint = {
+        record.fingerprint: record.model for record in records if record.model
+    }
+    backfilled = repository.backfill_models(models_by_fingerprint)
+    return AgentBackfillResult(
+        agent=agent, records_scanned=len(records), records_backfilled=backfilled
+    )
+
+
+def backfill_all_models(
+    *,
+    ledger_path: Path,
+    hermes_db: Path,
+    claude_projects_dir: Path,
+    codex_sessions_dir: Path,
+    now: datetime,
+    configured_start: datetime = DEFAULT_INITIAL_START,
+) -> list[AgentBackfillResult]:
+    """Backfill ``model`` into every agent's already-ledgered rows."""
+    source_paths = source_paths_by_agent(
+        hermes_db=hermes_db,
+        claude_projects_dir=claude_projects_dir,
+        codex_sessions_dir=codex_sessions_dir,
+    )
+    repository = LedgerRepository.open(ledger_path)
+    try:
+        return [
+            backfill_agent_models(
+                agent,
+                adapter_collect,
+                source_paths[agent],
+                repository,
+                now=now,
+                configured_start=configured_start,
+            )
+            for agent, adapter_collect in ADAPTER_COLLECTORS
+        ]
+    finally:
+        repository.close()
 
 
 def collect_all(

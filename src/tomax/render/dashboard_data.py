@@ -81,6 +81,7 @@ def build_dashboard_data(
     agent_totals_by_day = daily_agent_totals(valid_payloads, include_cache_tokens=include_cache_tokens)
     skills_by_day = daily_counter_totals(valid_payloads, "skills")
     mcp_by_day = daily_counter_totals(valid_payloads, "mcp_servers")
+    models_by_day = daily_counter_totals(valid_payloads, "models")
     heatmap = [
         {
             "date": day,
@@ -97,6 +98,10 @@ def build_dashboard_data(
             "byMcp": [
                 {"name": name, "count": count} for name, count in rank_usage(mcp_by_day.get(day, {}))
             ],
+            "byModel": [
+                {"name": name, "count": count}
+                for name, count in rank_usage(models_by_day.get(day, {}))
+            ],
         }
         for day, total in sorted(
             daily_totals(valid_payloads, include_cache_tokens=include_cache_tokens).items()
@@ -110,6 +115,7 @@ def build_dashboard_data(
         "agents": agents,
         "skills": _pie(aggregated["skills"], pie_top_n),
         "mcp": _pie(aggregated["mcp_servers"], pie_top_n),
+        "models": _pie(aggregated["models"], pie_top_n),
         "heatmap": heatmap,
         "pieTopN": pie_top_n,
     }

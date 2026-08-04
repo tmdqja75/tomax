@@ -25,6 +25,7 @@ def _record(
     occurred_at: datetime = datetime(2026, 7, 10, 12, 0, tzinfo=UTC),
     fingerprint: str = "fp-default",
     session_fingerprint: str | None = "session-fp-default",
+    model: str | None = None,
     tokens: TokenUsage | None = TokenUsage(input_tokens=10, output_tokens=5, reasoning_tokens=1),
     source_status: SourceStatus = SourceStatus.AVAILABLE_WITH_ACTIVITY,
     observed_skill_name: str | None = None,
@@ -36,6 +37,7 @@ def _record(
         occurred_at=occurred_at,
         fingerprint=fingerprint,
         session_fingerprint=session_fingerprint,
+        model=model,
         tokens=tokens,
         observed_skill_name=observed_skill_name,
         observed_mcp_server_name=observed_mcp_server_name,
@@ -217,6 +219,57 @@ def test_mcp_server_and_tool_counters_are_tracked() -> None:
 
     assert payload["mcp_servers"]["synthetic_server"] == 1
     assert payload["mcp_tools"]["synthetic_server/synthetic_tool"] == 1
+
+
+def test_model_token_totals_are_summed_from_headline_total() -> None:
+    records = [
+        _record(
+            fingerprint="fp-1",
+            session_fingerprint="s-1",
+            model="claude-sonnet-5",
+            tokens=TokenUsage(input_tokens=10, output_tokens=5, reasoning_tokens=1),
+        ),
+        _record(
+            fingerprint="fp-2",
+            session_fingerprint="s-2",
+            model="claude-sonnet-5",
+            tokens=TokenUsage(input_tokens=20, output_tokens=8, reasoning_tokens=2),
+        ),
+        _record(
+            fingerprint="fp-3",
+            session_fingerprint="s-3",
+            model="claude-opus-5",
+            tokens=TokenUsage(input_tokens=100, output_tokens=50),
+        ),
+    ]
+
+    payload = build_daily_record(device_id="device-abc", day=DAY, records=records)
+
+    assert payload["models"]["claude-sonnet-5"] == 46
+    assert payload["models"]["claude-opus-5"] == 150
+
+
+def test_records_without_a_model_are_excluded_from_the_models_counter() -> None:
+    payload = build_daily_record(device_id="device-abc", day=DAY, records=[_record(model=None)])
+
+    assert payload["models"] == {}
+
+
+def test_model_counters_are_capped_with_a_stable_overflow_bucket() -> None:
+    records = [
+        _record(
+            fingerprint=f"fp-{i}",
+            session_fingerprint=f"s-{i}",
+            model=f"model-{i}",
+            tokens=TokenUsage(input_tokens=1),
+        )
+        for i in range(200)
+    ]
+
+    payload = build_daily_record(device_id="device-abc", day=DAY, records=records)
+
+    assert len(payload["models"]) <= 51
+    assert "(other)" in payload["models"]
 
 
 def test_name_counters_are_capped_with_a_stable_overflow_bucket() -> None:

@@ -11,6 +11,7 @@ from tomax.aggregate import (
     agent_available_date_range,
     aggregate_records,
     daily_agent_totals,
+    daily_counter_totals,
     daily_token_totals,
     daily_totals,
     monthly_totals,
@@ -48,6 +49,7 @@ def _payload(
     session_count: int = 1,
     status: SourceStatus = SourceStatus.AVAILABLE_WITH_ACTIVITY,
     skills: dict | None = None,
+    model: str | None = None,
     agent: SupportedAgent = SupportedAgent.CLAUDE_CODE,
 ) -> dict:
     from tomax.models import NormalizedUsageRecord, TokenUsage
@@ -58,6 +60,7 @@ def _payload(
         occurred_at=datetime(day.year, day.month, day.day, 12, 0, tzinfo=timezone.utc),
         fingerprint=f"fp-{device_id}-{day.isoformat()}",
         session_fingerprint=f"session-{device_id}-{day.isoformat()}",
+        model=model,
         tokens=TokenUsage(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -261,6 +264,30 @@ def test_aggregate_records_sums_skill_and_mcp_counters_across_devices() -> None:
     summary = aggregate_records(payloads)
 
     assert summary["skills"]["graphify"] == 2
+
+
+def test_aggregate_records_sums_model_counters_across_devices() -> None:
+    payloads = [
+        _payload(device_id="device-a", model="claude-sonnet-5", input_tokens=10, output_tokens=5),
+        _payload(device_id="device-b", model="claude-sonnet-5", input_tokens=20, output_tokens=8),
+    ]
+
+    summary = aggregate_records(payloads)
+
+    assert summary["models"]["claude-sonnet-5"] == 45
+
+
+def test_daily_counter_totals_sums_the_models_field_per_day() -> None:
+    payloads = [
+        _payload(device_id="device-a", day=date(2026, 7, 10), model="claude-sonnet-5"),
+        _payload(device_id="device-b", day=date(2026, 7, 10), model="claude-sonnet-5"),
+        _payload(device_id="device-a", day=date(2026, 7, 11), model="claude-opus-5"),
+    ]
+
+    totals = daily_counter_totals(payloads, "models")
+
+    assert totals["2026-07-10"]["claude-sonnet-5"] == 32
+    assert totals["2026-07-11"]["claude-opus-5"] == 16
 
 
 def test_rolling_window_selects_only_the_last_n_days() -> None:

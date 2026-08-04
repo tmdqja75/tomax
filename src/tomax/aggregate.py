@@ -65,7 +65,7 @@ def agent_effective_total(
     if include_cache_tokens:
         total += agent_data["cache_write_tokens"]
     return total
-_COUNTER_CATEGORIES = ("skills", "mcp_servers", "mcp_tools")
+_COUNTER_CATEGORIES = ("skills", "mcp_servers", "mcp_tools", "models")
 
 # Precedence when devices disagree on an agent's status for the same day:
 # the most informative status wins.
@@ -249,6 +249,7 @@ def aggregate_records(payloads: list[dict]) -> dict:
     skills: dict[str, int] = {}
     mcp_servers: dict[str, int] = {}
     mcp_tools: dict[str, int] = {}
+    models: dict[str, int] = {}
     devices: set[str] = set()
 
     for payload in payloads:
@@ -273,6 +274,8 @@ def aggregate_records(payloads: list[dict]) -> dict:
             mcp_servers[name] = mcp_servers.get(name, 0) + count
         for name, count in payload.get("mcp_tools", {}).items():
             mcp_tools[name] = mcp_tools.get(name, 0) + count
+        for name, count in payload.get("models", {}).items():
+            models[name] = models.get(name, 0) + count
 
     overall_active_dates: set[str] = set()
     for agent_name, status_by_date in status_by_agent_date.items():
@@ -294,6 +297,7 @@ def aggregate_records(payloads: list[dict]) -> dict:
         "skills": dict(sorted(skills.items())),
         "mcp_servers": dict(sorted(mcp_servers.items())),
         "mcp_tools": dict(sorted(mcp_tools.items())),
+        "models": dict(sorted(models.items())),
         "distinct_devices": len(devices),
         "active_days": len(overall_active_dates),
     }
