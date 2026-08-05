@@ -14,12 +14,18 @@ export type TokenPoint = {
   cache: number;
 };
 
-export function TokenArea({ data }: { data: TokenPoint[] }) {
+export function TokenArea({ data, inView }: { data: TokenPoint[]; inView: boolean }) {
   if (data.length === 0) return <div className="empty">{t("state.noTokenActivity")}</div>;
 
   return (
     <>
-      <AreaChart data={data} xDataKey="date" aspectRatio="3 / 1" margin={{ left: 50 }}>
+      <AreaChart
+        data={data}
+        xDataKey="date"
+        aspectRatio="3 / 1"
+        margin={{ left: 54 }}
+        status={inView ? "ready" : "loading"}
+      >
         <Grid horizontal />
         <Area dataKey="input" fill={SERIES_COLORS.input} />
         <Area dataKey="output" fill={SERIES_COLORS.output} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 import { TooltipContent } from "@/components/charts/tooltip/tooltip-content";
 import { agentLabel, CATEGORY_COLORS } from "./names";
 import { t, getLocale } from "@/i18n";
@@ -24,7 +24,7 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function CalendarHeatmap({ data }: { data: HeatDatum[] }) {
+export function CalendarHeatmap({ data, inView }: { data: HeatDatum[]; inView: boolean }) {
   const [hover, setHover] = useState<{ x: number; y: number; datum: HeatDatum } | null>(null);
 
   if (data.length === 0) return <div className="empty">{t("state.noActivity")}</div>;
@@ -92,9 +92,9 @@ export function CalendarHeatmap({ data }: { data: HeatDatum[] }) {
             </span>
           ))}
         </div>
-        <div className="cal">
+        <div className={`cal${inView ? " revealed" : ""}`}>
           {weeks.map((week, wi) => (
-            <div className="col" key={wi}>
+            <div className="col" key={wi} style={{ "--i": wi } as CSSProperties}>
               {week.map((day) => {
                 const key = iso(day);
                 const tokens = byDate.get(key);

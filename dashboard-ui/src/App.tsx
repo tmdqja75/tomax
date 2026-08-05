@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { AgentRing } from "./charts/AgentRing";
 import { CalendarHeatmap } from "./charts/CalendarHeatmap";
 import { DateRangeFilter } from "./charts/DateRangeFilter";
@@ -6,7 +6,19 @@ import { ModelBar } from "./charts/ModelBar";
 import { TokenChart } from "./charts/TokenChart";
 import { UsageDonut } from "./charts/UsageDonut";
 import { parseISODate, windowDateFmt } from "@/components/charts/chart-formatters";
+import { useInView } from "./hooks/use-in-view";
 import { t } from "./i18n";
+
+/** Chart block whose contents learn whether they've scrolled into view, so the
+ * chart inside can hold its entrance animation until then. */
+function RevealBlock({ children }: { children: (inView: boolean) => ReactNode }) {
+  const [ref, inView] = useInView<HTMLElement>();
+  return (
+    <section className="block" ref={ref}>
+      {children(inView)}
+    </section>
+  );
+}
 
 type HeatDatum = {
   date: string;
@@ -116,47 +128,75 @@ export default function App() {
 
   return (
     <div className="dashboard">
-      <section className="block">
-        <h2>
-          {t("title.tokenUsage")}{" "}
-          <span className="window">
-            {windowDateFmt.format(parseISODate(data.window.start))} →{" "}
-            {windowDateFmt.format(parseISODate(data.window.end))}
-          </span>
-        </h2>
-        {tokenMin && tokenMax && range && (
-          <DateRangeFilter
-            min={tokenMin}
-            max={tokenMax}
-            from={range.from}
-            to={range.to}
-            onChange={setRange}
-          />
+      <RevealBlock>
+        {(inView) => (
+          <>
+            <h2>
+              {t("title.tokenUsage")}{" "}
+              <span className="window">
+                {windowDateFmt.format(parseISODate(data.window.start))} →{" "}
+                {windowDateFmt.format(parseISODate(data.window.end))}
+              </span>
+            </h2>
+            {tokenMin && tokenMax && range && (
+              <DateRangeFilter
+                min={tokenMin}
+                max={tokenMax}
+                from={range.from}
+                to={range.to}
+                onChange={setRange}
+              />
+            )}
+            <TokenChart
+              data={filteredTokens}
+              useBarChart={data.tokensChartType === "bar"}
+              inView={inView}
+            />
+          </>
         )}
-        <TokenChart data={filteredTokens} useBarChart={data.tokensChartType === "bar"} />
-      </section>
-      <section className="block">
-        <h2>{t("title.usageByAgent")}</h2>
-        <AgentRing data={filteredAgents} />
-      </section>
-      <section className="block">
-        <h2>{t("title.modelUsage")}</h2>
-        <ModelBar data={filteredModels} />
-      </section>
+      </RevealBlock>
+      <RevealBlock>
+        {(inView) => (
+          <>
+            <h2>{t("title.usageByAgent")}</h2>
+            <AgentRing data={filteredAgents} inView={inView} />
+          </>
+        )}
+      </RevealBlock>
+      <RevealBlock>
+        {(inView) => (
+          <>
+            <h2>{t("title.modelUsage")}</h2>
+            <ModelBar data={filteredModels} inView={inView} />
+          </>
+        )}
+      </RevealBlock>
       <div className="row-two">
-        <section className="block">
-          <h2>{t("title.skillUsage")}</h2>
-          <UsageDonut data={filteredSkills} />
-        </section>
-        <section className="block">
-          <h2>{t("title.mcpUsage")}</h2>
-          <UsageDonut data={filteredMcp} />
-        </section>
+        <RevealBlock>
+          {(inView) => (
+            <>
+              <h2>{t("title.skillUsage")}</h2>
+              <UsageDonut data={filteredSkills} inView={inView} />
+            </>
+          )}
+        </RevealBlock>
+        <RevealBlock>
+          {(inView) => (
+            <>
+              <h2>{t("title.mcpUsage")}</h2>
+              <UsageDonut data={filteredMcp} inView={inView} />
+            </>
+          )}
+        </RevealBlock>
       </div>
-      <section className="block">
-        <h2>{t("title.activity")}</h2>
-        <CalendarHeatmap data={filteredHeatmap} />
-      </section>
+      <RevealBlock>
+        {(inView) => (
+          <>
+            <h2>{t("title.activity")}</h2>
+            <CalendarHeatmap data={filteredHeatmap} inView={inView} />
+          </>
+        )}
+      </RevealBlock>
     </div>
   );
 }
