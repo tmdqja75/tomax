@@ -6,7 +6,11 @@ import sqlite3
 
 SCHEMA_VERSION = 2
 
-_EVENTS_CACHE_TOKEN_COLUMNS = ("cache_read_tokens", "cache_write_tokens")
+_EVENTS_ADDITIVE_COLUMNS = (
+    ("cache_read_tokens", "INTEGER"),
+    ("cache_write_tokens", "INTEGER"),
+    ("model", "TEXT"),
+)
 
 _CREATE_EVENTS = """
 CREATE TABLE IF NOT EXISTS events (
@@ -19,6 +23,7 @@ CREATE TABLE IF NOT EXISTS events (
     reasoning_tokens INTEGER,
     cache_read_tokens INTEGER,
     cache_write_tokens INTEGER,
+    model TEXT,
     observed_skill_name TEXT,
     observed_mcp_server_name TEXT,
     observed_mcp_tool_name TEXT,
@@ -71,14 +76,15 @@ def _add_missing_events_columns(connection: sqlite3.Connection) -> None:
     """Add ``events`` columns introduced after a DB's original creation.
 
     ``CREATE TABLE IF NOT EXISTS`` never alters an already-existing table,
-    so a ledger created before cache-token tracking was added needs its
-    ``events`` table patched in place rather than recreated, to keep every
+    so a ledger created before a column in ``_EVENTS_ADDITIVE_COLUMNS`` was
+    added (e.g. cache-token tracking, model tracking) needs its ``events``
+    table patched in place rather than recreated, to keep every
     already-collected row.
     """
     existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
-    for column in _EVENTS_CACHE_TOKEN_COLUMNS:
+    for column, sql_type in _EVENTS_ADDITIVE_COLUMNS:
         if column not in existing_columns:
-            connection.execute(f"ALTER TABLE events ADD COLUMN {column} INTEGER")
+            connection.execute(f"ALTER TABLE events ADD COLUMN {column} {sql_type}")
 
 
 def apply_schema(connection: sqlite3.Connection) -> None:

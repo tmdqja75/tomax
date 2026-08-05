@@ -146,6 +146,28 @@ def test_collect_dry_run_reports_and_writes_nothing(tmp_path, monkeypatch) -> No
             repository.close()
 
 
+def test_collect_backfill_model_reports_scanned_and_backfilled(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+
+    result = runner.invoke(app, ["collect", "--backfill-model"])
+
+    assert result.exit_code == 0
+    # a missing source's collect() still returns one source_unavailable
+    # marker record, so "scanned" is 1 even with nothing to backfill.
+    for agent in ("hermes_agent", "claude_code", "codex"):
+        assert f"{agent}: scanned 1, backfilled 0" in result.stdout
+
+
+def test_collect_backfill_model_rejects_dry_run(tmp_path, monkeypatch) -> None:
+    _patch_local_paths(monkeypatch, tmp_path)
+    _patch_missing_sources(monkeypatch, tmp_path)
+
+    result = runner.invoke(app, ["collect", "--backfill-model", "--dry-run"])
+
+    assert result.exit_code != 0
+
+
 def test_collect_then_render_produces_a_local_preview(tmp_path, monkeypatch) -> None:
     _patch_local_paths(monkeypatch, tmp_path)
     _patch_missing_sources(monkeypatch, tmp_path)

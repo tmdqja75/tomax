@@ -7,7 +7,10 @@ from datetime import datetime, timezone
 from codex_sessions import token_count_event, write_rollout
 
 from tomax.commands.collect import (
+    AgentBackfillResult,
     AgentCollectionResult,
+    backfill_agent_models,
+    backfill_all_models,
     backfill_window,
     collect_agent,
     collect_all,
@@ -450,3 +453,88 @@ def test_collect_agent_backfills_the_gap_without_disturbing_the_forward_checkpoi
     assert result.records_observed == 2
     assert result.records_inserted == 2
     assert len(stored) == 3
+
+
+# --- backfill_agent_models / backfill_all_models --------------------------
+
+
+def test_backfill_agent_models_patches_existing_rows_without_inserting(tmp_path) -> None:
+    ledger_path = tmp_path / "ledger.sqlite3"
+    repository = LedgerRepository.open(ledger_path)
+    try:
+        repository.insert_records(
+            [
+                NormalizedUsageRecord(
+                    agent=SupportedAgent.CLAUDE_CODE,
+                    occurred_at=datetime(2026, 7, 10, tzinfo=UTC),
+                    fingerprint="fp-existing",
+                    tokens=TokenUsage(input_tokens=1),
+                    source_status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+                )
+            ]
+        )
+
+        def fake_adapter_collect(source_path, window):
+            return [
+                NormalizedUsageRecord(
+                    agent=SupportedAgent.CLAUDE_CODE,
+                    occurred_at=datetime(2026, 7, 10, tzinfo=UTC),
+                    fingerprint="fp-existing",
+                    model="claude-sonnet-5",
+                    tokens=TokenUsage(input_tokens=1),
+                    source_status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+                ),
+                NormalizedUsageRecord(
+                    agent=SupportedAgent.CLAUDE_CODE,
+                    occurred_at=datetime(2026, 7, 11, tzinfo=UTC),
+                    fingerprint="fp-not-yet-collected",
+                    model="claude-sonnet-5",
+                    tokens=TokenUsage(input_tokens=1),
+                    source_status=SourceStatus.AVAILABLE_WITH_ACTIVITY,
+                ),
+            ]
+
+        result = backfill_agent_models(
+            SupportedAgent.CLAUDE_CODE,
+            fake_adapter_collect,
+            tmp_path / "unused-source",
+            repository,
+            now=NOW,
+            configured_start=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        stored = repository.list_records(SupportedAgent.CLAUDE_CODE)
+    finally:
+        repository.close()
+
+    assert result == AgentBackfillResult(
+        agent=SupportedAgent.CLAUDE_CODE, records_scanned=2, records_backfilled=1
+    )
+    # only the already-ledgered row is patched -- nothing new is inserted
+    assert len(stored) == 1
+    assert stored[0].model == "claude-sonnet-5"
+
+
+def test_backfill_all_models_scans_the_full_configured_start_to_now_window(tmp_path) -> None:
+    ledger_path = tmp_path / "ledger.sqlite3"
+    codex_sessions_dir = _write_codex_activity(tmp_path, timestamp="2026-07-01T00:00:00+00:00")
+    repository = LedgerRepository.open(ledger_path)
+    try:
+        collect_all(
+            ledger_path=ledger_path,
+            **_source_paths(tmp_path, codex_sessions_dir=codex_sessions_dir),
+            now=NOW,
+        )
+    finally:
+        repository.close()
+
+    configured_start = datetime(2026, 1, 1, tzinfo=UTC)
+    results = backfill_all_models(
+        ledger_path=ledger_path,
+        **_source_paths(tmp_path, codex_sessions_dir=codex_sessions_dir),
+        now=NOW,
+        configured_start=configured_start,
+    )
+
+    codex_result = next(r for r in results if r.agent is SupportedAgent.CODEX)
+    assert codex_result.records_scanned > 0

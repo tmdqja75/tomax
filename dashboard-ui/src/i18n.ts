@@ -18,6 +18,7 @@ const translations: Record<Lang, Record<string, string>> = {
   en: {
     "title.tokenUsage": "Total Token Usage",
     "title.usageByAgent": "Usage by Agent",
+    "title.modelUsage": "Model Usage",
     "title.skillUsage": "Skill Usage",
     "title.mcpUsage": "MCP Usage",
     "title.activity": "Activity",
@@ -44,6 +45,7 @@ const translations: Record<Lang, Record<string, string>> = {
   ko: {
     "title.tokenUsage": "총 토큰 사용량",
     "title.usageByAgent": "에이전트별 사용량",
+    "title.modelUsage": "모델 사용량",
     "title.skillUsage": "스킬 사용량",
     "title.mcpUsage": "MCP 사용량",
     "title.activity": "활동",

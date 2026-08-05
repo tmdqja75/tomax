@@ -27,7 +27,7 @@ def _agent(
     }
 
 
-def _payload(day, *, device="dev1", claude=None, codex=None, skills=None, mcp=None):
+def _payload(day, *, device="dev1", claude=None, codex=None, skills=None, mcp=None, models=None):
     return {
         "schema_version": 2,
         "device_id": device,
@@ -40,6 +40,7 @@ def _payload(day, *, device="dev1", claude=None, codex=None, skills=None, mcp=No
         "skills": skills or {},
         "mcp_servers": mcp or {},
         "mcp_tools": {},
+        "models": models or {},
     }
 
 
@@ -50,10 +51,12 @@ def test_build_dashboard_data_shapes_every_section():
             claude=_agent(input_=100, output=50, reasoning=0, headline=150),
             skills={"brainstorming": 3, "tdd": 2, "graphify": 1},
             mcp={"gmail": 4, "calendar": 1},
+            models={"claude-sonnet-5": 150},
         ),
         _payload(
             "2026-07-11",
             codex=_agent(input_=10, output=5, reasoning=2, headline=17),
+            models={"gpt-5.5": 17},
         ),
     ]
 
@@ -73,6 +76,10 @@ def test_build_dashboard_data_shapes_every_section():
         {"name": "Other", "count": 1},
     ]
     assert data["mcp"] == [{"name": "gmail", "count": 4}, {"name": "calendar", "count": 1}]
+    assert data["models"] == [
+        {"name": "claude-sonnet-5", "count": 150},
+        {"name": "gpt-5.5", "count": 17},
+    ]
     assert data["heatmap"] == [
         {
             "date": "2026-07-10",
@@ -87,6 +94,7 @@ def test_build_dashboard_data_shapes_every_section():
                 {"name": "gmail", "count": 4},
                 {"name": "calendar", "count": 1},
             ],
+            "byModel": [{"name": "claude-sonnet-5", "count": 150}],
         },
         {
             "date": "2026-07-11",
@@ -94,6 +102,7 @@ def test_build_dashboard_data_shapes_every_section():
             "byAgent": [{"agent": "codex", "tokens": 17}],
             "bySkill": [],
             "byMcp": [],
+            "byModel": [{"name": "gpt-5.5", "count": 17}],
         },
     ]
     assert data["pieTopN"] == 2
@@ -117,6 +126,7 @@ def test_build_dashboard_data_empty_uses_window_fallback():
     assert data["tokens"] == []
     assert data["skills"] == []
     assert data["mcp"] == []
+    assert data["models"] == []
     assert data["heatmap"] == []
     assert all(entry["tokens"] == 0 for entry in data["agents"])
 

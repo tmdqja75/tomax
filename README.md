@@ -45,6 +45,19 @@ uv run tomax collect
 by default; pass `--exclude-cache-tokens` to skip recording them at all
 (see [Prompt cache token tracking](#prompt-cache-token-tracking)).
 
+Model-name tracking (used by the dashboard's Model Usage chart) only applies
+to activity collected from here on — a plain `collect` never revisits
+already-ledgered rows. To patch the model name into rows collected before
+this feature existed, run:
+
+```sh
+uv run tomax collect --backfill-model
+```
+
+This re-reads full local source history (read-only) and fills in `model`
+only on already-ledgered rows that don't have one yet; it never inserts new
+rows or touches any other field, so it's safe to run more than once.
+
 Render a fully local dashboard preview after collecting. This command does not
 use Git or the network; it writes a preview README, sanitized daily records,
 and a screenshot of the dashboard to the chosen directory.
@@ -117,9 +130,10 @@ Flags:
 `tomax render` accepts the same `--exclude-cache-tokens` flag for its
 screenshot/README preview.
 
-The dashboard renders five blocks: total token usage over the rolling window,
-usage by agent (ring chart), Skills and MCP usage pies, and a calendar activity
-heatmap. It fetches `/data.json` from the local server when the page opens.
+The dashboard renders six blocks: total token usage over the rolling window,
+usage by agent (ring chart), usage by model (ranked bar chart), Skills and
+MCP usage pies, and a calendar activity heatmap. It fetches `/data.json` from
+the local server when the page opens.
 
 ## What the collector reads
 
@@ -127,9 +141,9 @@ The first release supports these local sources:
 
 | Agent | Local source | Accounting behavior |
 | --- | --- | --- |
-| Hermes Agent | `~/.hermes/state.db` | Reads usage rows (including per-row `cache_read_tokens`/`cache_write_tokens`) plus observed skill and MCP calls. |
-| Claude Code | `~/.claude/projects/*/*.jsonl` | Reads assistant usage, including `cache_creation_input_tokens`/`cache_read_input_tokens`, and observed Skill/MCP calls. Claude Code's reasoning counter is `0` because its source payload does not expose a separate reasoning field. |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | Converts cumulative `token_count` snapshots (including `cached_input_tokens`) into per-session deltas, including safe handling for counter resets; reads observed MCP calls. Codex has no cache-write signal, so its cache-write count is always `0`. |
+| Hermes Agent | `~/.hermes/state.db` | Reads usage rows (including per-row `cache_read_tokens`/`cache_write_tokens` and the model name) plus observed skill and MCP calls. |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | Reads assistant usage, including `cache_creation_input_tokens`/`cache_read_input_tokens` and the model name, and observed Skill/MCP calls. Claude Code's reasoning counter is `0` because its source payload does not expose a separate reasoning field. |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | Converts cumulative `token_count` snapshots (including `cached_input_tokens`) into per-session deltas, including safe handling for counter resets; attributes each delta to the model reported on the most recent `turn_context` event; reads observed MCP calls. Codex has no cache-write signal, so its cache-write count is always `0`. |
 
 The collector does not infer usage when a source is missing or malformed. Each
 agent reports one of the following statuses:

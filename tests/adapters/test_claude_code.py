@@ -113,6 +113,27 @@ def test_collect_returns_token_records_for_in_window_assistant_events(tmp_path) 
     assert record.tokens.cache_read_tokens == 9000
 
 
+def test_token_records_carry_the_model_from_the_assistant_event(tmp_path) -> None:
+    projects_dir = _project_dir(tmp_path)
+    write_transcript(
+        projects_dir / "proj-a" / "session-1.jsonl",
+        [
+            assistant_event(
+                uuid="uuid-a1",
+                session_id="session-1",
+                timestamp=IN_WINDOW,
+                model="claude-sonnet-5",
+                input_tokens=10,
+                output_tokens=20,
+            ),
+        ],
+    )
+
+    [record] = claude_code.collect(projects_dir, WINDOW)
+
+    assert record.model == "claude-sonnet-5"
+
+
 def test_reasoning_tokens_are_always_zero_for_claude_code(tmp_path) -> None:
     projects_dir = _project_dir(tmp_path)
     write_transcript(

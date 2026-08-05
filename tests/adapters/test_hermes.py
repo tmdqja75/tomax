@@ -133,6 +133,34 @@ def test_collect_aggregates_token_totals_from_session_model_usage(tmp_path) -> N
     assert cache_totals == [(0, 0), (5000, 500)]
 
 
+def test_token_records_carry_the_model_from_session_model_usage(tmp_path) -> None:
+    db_path = tmp_path / "state.db"
+    build_hermes_state_db(
+        db_path,
+        sessions=[{"id": "s-1", "source": "cli", "started_at": IN_WINDOW}],
+        session_model_usage=[
+            {
+                "session_id": "s-1",
+                "model": "synthetic-model-a",
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "last_seen": IN_WINDOW,
+            },
+            {
+                "session_id": "s-1",
+                "model": "synthetic-model-b",
+                "input_tokens": 20,
+                "output_tokens": 5,
+                "last_seen": IN_WINDOW,
+            },
+        ],
+    )
+
+    records = hermes.collect(db_path, WINDOW)
+
+    assert sorted(r.model for r in records) == ["synthetic-model-a", "synthetic-model-b"]
+
+
 def test_cache_tokens_never_inflate_the_headline_total(tmp_path) -> None:
     db_path = tmp_path / "state.db"
     build_hermes_state_db(

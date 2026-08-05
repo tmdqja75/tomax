@@ -138,11 +138,13 @@ def _token_record_from_assistant_event(
     )
     session_id = event.get("sessionId") or event.get("session_id") or ""
     uuid = event.get("uuid") or ""
+    model = event.get("message", {}).get("model")
     return NormalizedUsageRecord(
         agent=SupportedAgent.CLAUDE_CODE,
         occurred_at=occurred_at,
         fingerprint=make_fingerprint("claude_code", "assistant_usage", session_id, uuid),
         session_fingerprint=_session_fingerprint(session_id),
+        model=model if isinstance(model, str) and model else None,
         tokens=tokens,
         source_status=status,
     )

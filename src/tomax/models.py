@@ -88,6 +88,7 @@ class NormalizedUsageRecord:
     fingerprint: str
     tokens: TokenUsage | None
     session_fingerprint: str | None = None
+    model: str | None = None
     observed_skill_name: str | None = None
     observed_mcp_server_name: str | None = None
     observed_mcp_tool_name: str | None = None

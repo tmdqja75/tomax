@@ -18,6 +18,13 @@ not always zero. It also reports ``cached_input_tokens`` (a subset of
 ``cache_write_input_tokens`` field, so it defaults to 0 when absent rather
 than rejecting the event.
 
+The model name isn't on the ``token_count`` event itself; it's on separate
+``turn_context`` events (``payload.model``) that precede the turns they
+apply to. This adapter tracks the most recently seen ``turn_context``
+model as it walks a session's events in order and stamps it onto each
+token-delta record, so a mid-session model switch attributes deltas to
+the correct model on each side of the switch.
+
 MCP tool calls are recognized by the same ``mcp__<server>__<tool>``
 convention used by Hermes and Claude Code. Codex has no confirmed
 skill-invocation convention of its own (skills are a Claude
@@ -148,14 +155,23 @@ def _extract_total_usage(info: object) -> tuple[int, int, int, int, int] | None:
     return input_tokens, output_tokens, reasoning_tokens, cached_input_tokens, cache_write_input_tokens
 
 
+def _model_from_turn_context(event: dict) -> str | None:
+    model = event.get("payload", {}).get("model")
+    return model if isinstance(model, str) and model else None
+
+
 def _token_records_for_session(
     events: list[dict], window: TimeWindow, session_id: str
 ) -> list[NormalizedUsageRecord]:
     records = []
     previous_total: tuple[int, int, int, int, int] | None = None
     event_index = 0
+    current_model: str | None = None
 
     for event in events:
+        if event.get("type") == "turn_context":
+            current_model = _model_from_turn_context(event) or current_model
+            continue
         if event.get("type") != "event_msg":
             continue
         payload = event.get("payload", {})
@@ -210,6 +226,7 @@ def _token_records_for_session(
                     "codex", "token_count", session_id, str(event_index)
                 ),
                 session_fingerprint=_session_fingerprint(session_id),
+                model=current_model,
                 tokens=tokens,
                 source_status=status,
             )

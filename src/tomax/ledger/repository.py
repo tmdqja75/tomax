@@ -16,10 +16,10 @@ _INSERT_EVENT_SQL = """
 INSERT OR IGNORE INTO events (
     fingerprint, agent, occurred_at, session_fingerprint,
     input_tokens, output_tokens, reasoning_tokens,
-    cache_read_tokens, cache_write_tokens,
+    cache_read_tokens, cache_write_tokens, model,
     observed_skill_name, observed_mcp_server_name, observed_mcp_tool_name,
     source_status, schema_version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _CACHE_TOKEN_TOTALS_BY_AGENT_SQL = """
@@ -48,6 +48,7 @@ def _record_to_row(record: NormalizedUsageRecord) -> tuple:
         tokens.reasoning_tokens if tokens is not None else None,
         tokens.cache_read_tokens if tokens is not None else None,
         tokens.cache_write_tokens if tokens is not None else None,
+        record.model,
         record.observed_skill_name,
         record.observed_mcp_server_name,
         record.observed_mcp_tool_name,
@@ -74,6 +75,7 @@ def _row_to_record(row: sqlite3.Row) -> NormalizedUsageRecord:
         occurred_at=datetime.fromisoformat(row["occurred_at"]),
         fingerprint=row["fingerprint"],
         session_fingerprint=row["session_fingerprint"],
+        model=row["model"],
         tokens=tokens,
         observed_skill_name=row["observed_skill_name"],
         observed_mcp_server_name=row["observed_mcp_server_name"],
@@ -112,6 +114,24 @@ class LedgerRepository:
                 cursor = self._connection.execute(_INSERT_EVENT_SQL, _record_to_row(record))
                 inserted += cursor.rowcount
         return inserted
+
+    def backfill_models(self, models_by_fingerprint: dict[str, str]) -> int:
+        """Patch ``model`` into existing rows whose ``model`` is still unset.
+
+        Only fills a currently-NULL ``model`` column — never overwrites an
+        already-recorded value, and never inserts a row for a fingerprint
+        that isn't already in the ledger. Returns the number of rows
+        actually changed.
+        """
+        backfilled = 0
+        with self._connection:
+            for fingerprint, model in models_by_fingerprint.items():
+                cursor = self._connection.execute(
+                    "UPDATE events SET model = ? WHERE fingerprint = ? AND model IS NULL",
+                    (model, fingerprint),
+                )
+                backfilled += cursor.rowcount
+        return backfilled
 
     def list_records(
         self, agent: SupportedAgent | None = None

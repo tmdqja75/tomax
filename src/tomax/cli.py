@@ -146,11 +146,36 @@ def collect(
         "--exclude-cache-tokens",
         help="Don't record prompt cache-read/cache-write token counts in the ledger.",
     ),
+    backfill_model: bool = typer.Option(
+        False,
+        "--backfill-model",
+        help="Patch the model name into already-collected rows that predate model "
+        "tracking, instead of collecting new activity.",
+    ),
 ) -> None:
     """Pull new local agent usage into the private ledger."""
     now = datetime.now(timezone.utc)
     config = load_config(config_file_path())
     configured_start = resolve_initial_collection_start(config.initial_collection_start)
+    if backfill_model:
+        if dry_run or exclude_cache_tokens:
+            raise typer.BadParameter(
+                "--backfill-model cannot be combined with --dry-run or --exclude-cache-tokens"
+            )
+        results = collect_command.backfill_all_models(
+            ledger_path=ledger_file_path(),
+            hermes_db=DEFAULT_HERMES_STATE_DB,
+            claude_projects_dir=DEFAULT_CLAUDE_CODE_PROJECTS_DIR,
+            codex_sessions_dir=DEFAULT_CODEX_SESSIONS_DIR,
+            now=now,
+            configured_start=configured_start,
+        )
+        for result in results:
+            typer.echo(
+                f"  {result.agent.value}: scanned {result.records_scanned}, "
+                f"backfilled {result.records_backfilled}"
+            )
+        return
     results = collect_command.collect_all(
         ledger_path=ledger_file_path(),
         hermes_db=DEFAULT_HERMES_STATE_DB,

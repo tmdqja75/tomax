@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from codex_sessions import function_call_event, token_count_event, write_rollout
+from codex_sessions import (
+    function_call_event,
+    token_count_event,
+    turn_context_event,
+    write_rollout,
+)
 
 from tomax.adapters import codex
 from tomax.models import SourceStatus, SupportedAgent
@@ -87,6 +92,41 @@ def test_first_snapshot_in_a_session_is_its_own_delta(tmp_path) -> None:
     assert record.tokens.output_tokens == 72
     assert record.tokens.reasoning_tokens == 10
     assert record.source_status is SourceStatus.AVAILABLE_WITH_ACTIVITY
+
+
+def test_token_records_carry_the_model_from_a_preceding_turn_context_event(tmp_path) -> None:
+    sessions_dir = _sessions_dir(tmp_path)
+    write_rollout(
+        sessions_dir / "2026" / "07" / "10" / "rollout-x.jsonl",
+        "session-1",
+        [
+            turn_context_event(IN_WINDOW_1, model="gpt-5.5"),
+            token_count_event(IN_WINDOW_1, total_input=100, total_output=50),
+        ],
+    )
+
+    [record] = codex.collect(sessions_dir, WINDOW)
+
+    assert record.model == "gpt-5.5"
+
+
+def test_a_mid_session_model_switch_splits_attribution_across_deltas(tmp_path) -> None:
+    sessions_dir = _sessions_dir(tmp_path)
+    write_rollout(
+        sessions_dir / "2026" / "07" / "10" / "rollout-x.jsonl",
+        "session-1",
+        [
+            turn_context_event(IN_WINDOW_1, model="gpt-5.5"),
+            token_count_event(IN_WINDOW_1, total_input=100, total_output=50),
+            turn_context_event(IN_WINDOW_2, model="gpt-5.5-mini"),
+            token_count_event(IN_WINDOW_2, total_input=150, total_output=80),
+        ],
+    )
+
+    records = codex.collect(sessions_dir, WINDOW)
+
+    by_model = {r.model: r.tokens.input_tokens for r in records}
+    assert by_model == {"gpt-5.5": 100, "gpt-5.5-mini": 50}
 
 
 def test_collect_computes_deltas_between_snapshots_never_sums_cumulative_totals(tmp_path) -> None:

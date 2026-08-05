@@ -68,11 +68,14 @@ See [README.md](README.md) for the user-facing guide.
     `TokenChart` on `data.tokensChartType`), `DateRangeFilter` (native date
     inputs, clamped to the loaded token date range — `App.tsx` owns the
     `{from, to}` state and filters the Total Token Usage chart, the
-    `AgentRing`, both `UsageDonut` pies, and the `CalendarHeatmap` all from
-    that one range, re-deriving the ring/pie totals from `heatmap[].byAgent`/
-    `bySkill`/`byMcp` and re-bucketing top-N client-side with `data.pieTopN`),
-    `AgentRing` (RingChart + Legend), `UsageDonut` (PieChart, Skills + MCP),
-    plus the custom `CalendarHeatmap` and the `names.ts` label/palette map.
+    `AgentRing`, `ModelBar`, both `UsageDonut` pies, and the `CalendarHeatmap`
+    all from that one range, re-deriving totals from `heatmap[].byAgent`/
+    `bySkill`/`byMcp`/`byModel` and re-bucketing top-N client-side with
+    `data.pieTopN`), `AgentRing` (RingChart + Legend), `ModelBar` (ranked
+    horizontal BarChart + BarYAxis — a ranked list scales past the ~6-8 slice
+    ceiling a pie/ring degrades at, since the model set is open-ended),
+    `UsageDonut` (PieChart, Skills + MCP), plus the custom `CalendarHeatmap`
+    and the `names.ts` label/palette map.
   - `src/i18n.ts` — translation lookup and locale-aware number/date formatting,
     driven by `window.__LANG__` (`en` or `ko`).
   Built on demand by `dashboard/ui_build.py`; `node_modules/` and `dist/` are gitignored.
@@ -101,13 +104,19 @@ See [README.md](README.md) for the user-facing guide.
   rendering — keep those intact.
 - `data.json` contract keys: `window {start,end}`, `tokens [{date,input,output,
   reasoning}]`, `tokensChartType ("bar"|"area")`, `agents [{agent,tokens}]`,
-  `skills [{name,count}]`, `mcp [{name,count}]`, `heatmap [{date,tokens,
-  byAgent [{agent,tokens}]}, bySkill [{name,count}], byMcp [{name,count}]]`,
-  `pieTopN`. `bySkill`/`byMcp` are unbucketed per-day counts (no `Other`
-  folding) so the dashboard can re-sum them over any date-picker range and
-  re-bucket client-side with `pieTopN` — bucketing per day first would make
-  cross-day `Other` sums lossy.
-- Skills/MCP pies bucket beyond `--pie-top-n` (default 6) into one `Other` entry.
+  `skills [{name,count}]`, `mcp [{name,count}]`, `models [{name,count}]`,
+  `heatmap [{date,tokens, byAgent [{agent,tokens}]}, bySkill [{name,count}],
+  byMcp [{name,count}], byModel [{name,count}]]`, `pieTopN`. `bySkill`/`byMcp`/
+  `byModel` are unbucketed per-day counts (no `Other` folding) so the
+  dashboard can re-sum them over any date-picker range and re-bucket
+  client-side with `pieTopN` — bucketing per day first would make cross-day
+  `Other` sums lossy.
+- Skills/MCP/model pies bucket beyond `--pie-top-n` (default 6) into one
+  `Other` entry. `models` sums each record's headline token total
+  (input+output+reasoning) per model name, sourced from `message.model`
+  (Claude Code), `session_model_usage.model` (Hermes), or the model on the
+  most recent `turn_context` event (Codex) — it deliberately excludes cache
+  tokens (see `public_data.build_daily_record`'s docstring).
 - `tokensChartType` is computed server-side in `render/dashboard_data.py` from
   the window span vs. `AppConfig.bar_chart_threshold_days` (default 15, set via
   `tomax config bar-chart-threshold --days N`) — `"bar"` above the
