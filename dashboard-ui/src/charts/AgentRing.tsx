@@ -15,7 +15,9 @@ import { getLang, t } from "@/i18n";
 
 export type AgentDatum = { agent: string; tokens: number };
 
-export function AgentRing({ data }: { data: AgentDatum[] }) {
+const SIZE = 280;
+
+export function AgentRing({ data, inView }: { data: AgentDatum[]; inView: boolean }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const active = data.filter((d) => d.tokens > 0);
@@ -40,24 +42,28 @@ export function AgentRing({ data }: { data: AgentDatum[] }) {
         flexWrap: "wrap",
       }}
     >
-      <RingChart
-        data={items}
-        size={280}
-        strokeWidth={20}
-        hoveredIndex={hoveredIndex}
-        onHoverChange={setHoveredIndex}
-      >
-        {items.map((_, i) => (
-          <Ring key={i} index={i} />
-        ))}
-        <RingCenter
-          defaultLabel={t("center.totalTokens")}
-          formatOptions={{
-            notation: "compact",
-            maximumFractionDigits: getLang() === "ko" ? 0 : 1,
-          }}
-        />
-      </RingChart>
+      {inView ? (
+        <RingChart
+          data={items}
+          size={SIZE}
+          strokeWidth={20}
+          hoveredIndex={hoveredIndex}
+          onHoverChange={setHoveredIndex}
+        >
+          {items.map((_, i) => (
+            <Ring key={i} index={i} />
+          ))}
+          <RingCenter
+            defaultLabel={t("center.totalTokens")}
+            formatOptions={{
+              notation: "compact",
+              maximumFractionDigits: getLang() === "ko" ? 0 : 1,
+            }}
+          />
+        </RingChart>
+      ) : (
+        <div style={{ width: SIZE, height: SIZE }} />
+      )}
       <Legend items={items} hoveredIndex={hoveredIndex} onHoverChange={setHoveredIndex}>
         <LegendItem>
           <LegendMarker />

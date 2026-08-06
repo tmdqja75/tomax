@@ -8,7 +8,7 @@ import { SERIES_COLORS } from "./names";
 import { t } from "@/i18n";
 import type { TokenPoint } from "./TokenArea";
 
-export function TokenBar({ data }: { data: TokenPoint[] }) {
+export function TokenBar({ data, inView }: { data: TokenPoint[]; inView: boolean }) {
   if (data.length === 0) return <div className="empty">{t("state.noTokenActivity")}</div>;
 
   return (
@@ -17,9 +17,10 @@ export function TokenBar({ data }: { data: TokenPoint[] }) {
         data={data}
         xDataKey="date"
         aspectRatio="3 / 1"
-        margin={{ left: 50 }}
+        margin={{ left: 54 }}
         stacked
         stackGap={3}
+        status={inView ? "ready" : "loading"}
       >
         <Grid horizontal />
         <Bar dataKey="input" fill={SERIES_COLORS.input} lineCap="butt" />

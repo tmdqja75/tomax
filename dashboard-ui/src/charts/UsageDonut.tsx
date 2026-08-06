@@ -19,7 +19,9 @@ export type UsageDatum = { name: string; count: number };
 // server-synthesized bucket, not a real skill/MCP name, so it's translated.
 const OTHER_LABEL = "Other";
 
-export function UsageDonut({ data }: { data: UsageDatum[] }) {
+const SIZE = 220;
+
+export function UsageDonut({ data, inView }: { data: UsageDatum[]; inView: boolean }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -54,19 +56,23 @@ export function UsageDonut({ data }: { data: UsageDatum[] }) {
           setHoverPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         }}
       >
-        <PieChart
-          data={slices}
-          size={220}
-          innerRadius={64}
-          padAngle={0.02}
-          hoveredIndex={hoveredIndex}
-          onHoverChange={setHoveredIndex}
-        >
-          {slices.map((_, i) => (
-            <PieSlice key={i} index={i} />
-          ))}
-          <PieCenter defaultLabel={t("center.total")} />
-        </PieChart>
+        {inView ? (
+          <PieChart
+            data={slices}
+            size={SIZE}
+            innerRadius={64}
+            padAngle={0.02}
+            hoveredIndex={hoveredIndex}
+            onHoverChange={setHoveredIndex}
+          >
+            {slices.map((_, i) => (
+              <PieSlice key={i} index={i} />
+            ))}
+            <PieCenter defaultLabel={t("center.total")} />
+          </PieChart>
+        ) : (
+          <div style={{ width: SIZE, height: SIZE }} />
+        )}
         {hovered && hoverPos && (
           <div
             className="pointer-events-none absolute z-50"

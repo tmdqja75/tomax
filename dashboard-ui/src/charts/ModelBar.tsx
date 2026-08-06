@@ -8,7 +8,7 @@ import { t } from "@/i18n";
 
 export type ModelDatum = { name: string; count: number };
 
-export function ModelBar({ data }: { data: ModelDatum[] }) {
+export function ModelBar({ data, inView }: { data: ModelDatum[]; inView: boolean }) {
   const active = data.filter((d) => d.count > 0);
   if (active.length === 0) return <div className="empty">{t("state.noData")}</div>;
 
@@ -20,8 +20,9 @@ export function ModelBar({ data }: { data: ModelDatum[] }) {
       xDataKey="name"
       orientation="horizontal"
       aspectRatio="3 / 1"
-      margin={{ left: 110 }}
+      margin={{ left: 130 }}
       barGap={0.25}
+      status={inView ? "ready" : "loading"}
     >
       <Grid vertical />
       <Bar dataKey="count" fill={CATEGORY_COLORS[0]} />
