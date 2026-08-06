@@ -52,6 +52,7 @@ def publish(
     privacy_policy: PrivacyPolicy = PrivacyPolicy(),
     today: date,
     gh_auth_check: Callable[[], str] | None = None,
+    on_progress: Callable[[str], None] | None = None,
 ) -> PublishSummary:
     """Stage this device's own daily records and push them to ``repo_url``.
 
@@ -60,9 +61,18 @@ def publish(
     value), so monkeypatching ``tomax.commands.publish.check_gh_auth``
     — the same pattern used for this project's other default sources/paths
     — actually takes effect for callers, like the CLI, that don't override it.
+
+    ``on_progress``, if given, is called with a short human-readable message
+    before each potentially slow step (gh auth check, ledger read, repo
+    clone/fetch, staging, commit+push) — the same optional-callback pattern
+    ``on_collected`` uses in :mod:`tomax.commands.dashboard`.
     """
+    progress = on_progress or (lambda _message: None)
+
+    progress("checking gh auth status")
     (gh_auth_check or check_gh_auth)()
 
+    progress(f"reading local ledger at {ledger_path}")
     repository = LedgerRepository.open(ledger_path)
     try:
         device_id = repository.get_or_create_device_id()
@@ -70,18 +80,22 @@ def publish(
     finally:
         repository.close()
 
+    progress(f"cloning/opening profile repo at {clone_dir}")
     repo_dir = clone_or_open(repo_url, clone_dir, branch=branch)
 
+    progress(f"staging sanitized daily aggregates for device {device_id}")
     device_dir = repo_dir / "data" / "v1" / "devices" / device_id
     payloads = stage_daily_records(
         device_dir, device_id=device_id, records=records, privacy_policy=privacy_policy
     )
 
+    progress("committing and pushing device partition")
     result = publish_device_partition(
         repo_dir,
         device_id=device_id,
         branch=branch,
         commit_message=f"chore: update {device_id} daily aggregates ({today.isoformat()})",
+        on_progress=on_progress,
     )
 
     return PublishSummary(device_id=device_id, days_staged=len(payloads), result=result)

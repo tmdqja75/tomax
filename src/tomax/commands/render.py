@@ -9,6 +9,7 @@ are published and picked up by the profile repository's own GitHub Action
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -57,8 +58,18 @@ def render(
     bar_chart_threshold_days: int = 15,
     force_build: bool = False,
     include_cache_tokens: bool = True,
+    on_progress: Callable[[str], None] | None = None,
 ) -> RenderResult:
-    """Regenerate this device's local dashboard preview. Returns whether anything changed."""
+    """Regenerate this device's local dashboard preview. Returns whether anything changed.
+
+    ``on_progress``, if given, is called with a short human-readable message
+    before each potentially slow step (ledger read, staging, UI build,
+    headless Chromium screenshot) — the same optional-callback pattern
+    ``on_collected`` uses in :mod:`tomax.commands.dashboard`.
+    """
+    progress = on_progress or (lambda _message: None)
+
+    progress(f"reading local ledger at {ledger_path}")
     repository = LedgerRepository.open(ledger_path)
     try:
         device_id = repository.get_or_create_device_id()
@@ -66,6 +77,7 @@ def render(
     finally:
         repository.close()
 
+    progress(f"staging sanitized daily aggregates for device {device_id}")
     device_data_dir = output_dir / "data" / "v1" / "devices" / device_id
     stage_daily_records(
         device_data_dir, device_id=device_id, records=records, privacy_policy=privacy_policy
@@ -87,11 +99,13 @@ def render(
         bar_chart_threshold_days=bar_chart_threshold_days,
         force_build=force_build,
         include_cache_tokens=include_cache_tokens,
+        on_progress=on_progress,
     )
     png_bytes = tmp_png.read_bytes()
     tmp_png.unlink(missing_ok=True)
     changed = _write_if_changed(screenshot_path, png_bytes)
 
+    progress("writing README")
     readme_path = output_dir / "README.md"
     existing_readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
     updated_readme = update_readme(existing_readme, render_dashboard_markdown())

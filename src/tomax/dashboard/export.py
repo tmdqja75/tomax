@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -32,14 +33,16 @@ def _url_allowed(url: str, prefix: str) -> bool:
     return url.startswith(prefix)
 
 
-def _launch_chromium(playwright, *, installer=subprocess.run):
+def _launch_chromium(playwright, *, installer=subprocess.run, on_progress=None):
     """Launch headless Chromium, auto-installing it once if the binary is missing."""
+    progress = on_progress or (lambda _message: None)
     try:
         return playwright.chromium.launch(headless=True)
     except (PlaywrightError, RuntimeError) as error:
         message = str(error)
         if not any(hint in message for hint in _MISSING_BROWSER_HINTS):
             raise
+        progress("installing headless Chromium (first run only)")
         result = installer(
             [sys.executable, "-m", "playwright", "install", "chromium"],
             capture_output=True,
@@ -61,8 +64,10 @@ def screenshot_payload(
     lang: str = "en",
     width: int = 1100,
     scale: int = 2,
+    on_progress: Callable[[str], None] | None = None,
 ) -> None:
     """Screenshot an already-assembled payload against an already-built dist."""
+    progress = on_progress or (lambda _message: None)
     server = make_server(payload, dist_dir=dist_dir, host="127.0.0.1", port=0, lang=lang)
     port = server.server_address[1]
     prefix = f"http://127.0.0.1:{port}/"
@@ -70,7 +75,8 @@ def screenshot_payload(
     thread.start()
     try:
         with sync_playwright() as playwright:
-            browser = _launch_chromium(playwright)
+            progress("launching headless Chromium")
+            browser = _launch_chromium(playwright, on_progress=on_progress)
             context = browser.new_context(
                 viewport={"width": width, "height": 900},
                 device_scale_factor=scale,
@@ -86,6 +92,7 @@ def screenshot_payload(
                 ),
             )
             page = context.new_page()
+            progress("waiting for dashboard to render")
             page.goto(prefix, wait_until="networkidle")
             page.wait_for_function(
                 "document.querySelector('.dashboard')"
@@ -93,6 +100,7 @@ def screenshot_payload(
             )
             page.evaluate("document.fonts.ready")
             page.wait_for_timeout(_SETTLE_MS)
+            progress("capturing screenshot")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(output_path), full_page=True, type="png")
             context.close()
@@ -119,8 +127,11 @@ def export_dashboard_png(
     scale: int = 2,
     force_build: bool = False,
     include_cache_tokens: bool = True,
+    on_progress: Callable[[str], None] | None = None,
 ) -> None:
     """Assemble the local payload, build the UI, and screenshot it to ``output_path``."""
+    progress = on_progress or (lambda _message: None)
+    progress("assembling dashboard payload")
     payload = build_payload(
         ledger_path=ledger_path,
         all_devices=all_devices,
@@ -132,7 +143,14 @@ def export_dashboard_png(
         tmp_stage_dir=tmp_stage_dir,
         include_cache_tokens=include_cache_tokens,
     )
+    progress("building dashboard UI (cached if already up to date)")
     dist_dir = resolve_dist_dir(ui_dir, force=force_build)
     screenshot_payload(
-        payload, output_path, dist_dir=dist_dir, lang=lang, width=width, scale=scale
+        payload,
+        output_path,
+        dist_dir=dist_dir,
+        lang=lang,
+        width=width,
+        scale=scale,
+        on_progress=on_progress,
     )
