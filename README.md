@@ -211,12 +211,14 @@ rebases before pushing, retries bounded non-fast-forward races, and never
 force-pushes. Use `--branch` to select a target branch or `--clone-dir` to use
 an explicit local checkout.
 
-To generate an aggregated profile dashboard, copy
-[`templates/github-workflow.yml`](templates/github-workflow.yml) into the
-profile repository as `.github/workflows/tomax-dashboard.yml`. The
-workflow validates device/day records and updates the managed README section
-and chart assets only when data beneath `data/v1/**` changes. Review and enable
-that workflow only when you are ready to publish sanitized aggregates.
+To generate an aggregated profile dashboard, run `tomax init` and answer
+"yes" when asked to register a usage dashboard — it walks you through
+choosing where the dashboard section goes in your README, previews the
+change, and installs
+[`.github/workflows/tomax-dashboard.yml`](src/tomax/templates/github-workflow.yml)
+for you (see `tomax init --help` for the non-interactive flags). The workflow
+validates device/day records and updates the managed README section and
+dashboard image only when data beneath `data/v1/**` changes.
 
 ## Optional daily macOS schedule
 
