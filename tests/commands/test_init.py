@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import subprocess
+
 import pytest
 
-from tomax.commands.init import init
+from tomax.commands.init import (
+    DashboardRegistrationResult,
+    init,
+    numbered_readme_lines,
+    preview_insertion,
+    readme_already_registered,
+    register_dashboard,
+)
 from tomax.config import AppConfig, get_or_create_device_id, load_config, save_config
+from tomax.publish.git import clone_or_open
+from tomax.render.markdown import MARKER_END, MARKER_START, render_dashboard_markdown
 
 
 def test_init_sets_repo_target(tmp_path) -> None:
@@ -88,18 +99,6 @@ def test_init_never_writes_a_github_token_or_hostname(tmp_path) -> None:
 
 
 # --- dashboard registration --------------------------------------------
-
-import subprocess
-
-from tomax.commands.init import (
-    DashboardRegistrationResult,
-    numbered_readme_lines,
-    preview_insertion,
-    readme_already_registered,
-    register_dashboard,
-)
-from tomax.publish.git import clone_or_open
-from tomax.render.markdown import MARKER_END, MARKER_START, render_dashboard_markdown
 
 
 def _run(cwd, *args):

@@ -192,15 +192,19 @@ GitHub token.
 
 ```sh
 gh auth status
-uv run tomax init --repo OWNER/PROFILE-REPO
+uv run tomax init
 uv run tomax collect
 uv run tomax render --output-dir ./tomax-preview
 uv run tomax publish
 ```
 
-`init` is local-only: it records the `OWNER/REPO` target and ensures the local
-device ID exists. `publish` then stages only this installation's sanitized
-files under:
+`init` prompts for the repo target and, if you'd like, walks you through
+registering the usage dashboard in that repo's README — or run it
+non-interactively with `tomax init --repo OWNER/PROFILE-REPO --dashboard
+--insert-line N --yes` (see `tomax init --help`). Declining the dashboard
+prompt (or passing `--no-dashboard`) keeps `init` local-only: it just
+records the `OWNER/REPO` target and ensures the local device ID exists.
+`publish` then stages only this installation's sanitized files under:
 
 ```text
 data/v1/devices/<opaque-device-id>/<YYYY-MM-DD>.json
