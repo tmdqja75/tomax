@@ -16,6 +16,7 @@ This module has no opinion on GitHub authentication — see
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -91,35 +92,40 @@ class PublishResult:
     attempts: int
 
 
-def publish_device_partition(
+def commit_and_push(
     repo_dir: Path,
     *,
-    device_id: str,
+    paths: Sequence[str],
     branch: str,
     commit_message: str,
     max_retries: int = 3,
+    on_progress: Callable[[str], None] | None = None,
 ) -> PublishResult:
-    """Commit and push only ``device_id``'s own data partition, never force-pushing.
+    """Commit and push exactly ``paths``, never force-pushing.
 
-    Assumes the caller has already written that device's daily record
-    files into ``repo_dir/data/v1/devices/<device_id>/``. Returns
-    ``pushed=False`` with no commit if there is nothing new to publish.
-    Fetches and rebases onto the remote branch before every push attempt;
-    on a non-fast-forward rejection (another device published first),
-    re-fetches, re-rebases, and retries up to ``max_retries`` times.
+    Returns ``pushed=False`` with no commit if none of ``paths`` exist on
+    disk, or none of the ones that do have staged changes. Fetches and
+    rebases onto the remote branch before every push attempt; on a
+    non-fast-forward rejection (someone else pushed first), re-fetches,
+    re-rebases, and retries up to ``max_retries`` times.
+
+    ``on_progress``, if given, is called with a short message before each
+    fetch+rebase+push attempt — the loop most likely to take a while or
+    need a retry.
     """
     if max_retries < 1:
         raise ValueError("max_retries must be at least 1")
+    progress = on_progress or (lambda _message: None)
 
-    partition_path = _device_partition(device_id)
-    if not (repo_dir / partition_path).exists():
+    existing_paths = [path for path in paths if (repo_dir / path).exists()]
+    if not existing_paths:
         # Nothing was staged on disk to begin with (e.g. an empty ledger) —
         # `git add` on a pathspec that matches nothing would otherwise error.
         return PublishResult(pushed=False, commit_sha=None, attempts=0)
 
-    _run("add", "--", partition_path, cwd=repo_dir)
+    _run("add", "--", *existing_paths, cwd=repo_dir)
 
-    if not _has_staged_changes(repo_dir, partition_path):
+    if not any(_has_staged_changes(repo_dir, path) for path in existing_paths):
         return PublishResult(pushed=False, commit_sha=None, attempts=0)
 
     _run("commit", "-m", commit_message, cwd=repo_dir)
@@ -127,6 +133,7 @@ def publish_device_partition(
     attempts = 0
     while attempts < max_retries:
         attempts += 1
+        progress(f"fetch+rebase onto origin/{branch} (attempt {attempts}/{max_retries})")
         _run("fetch", "origin", branch, cwd=repo_dir)
         try:
             _run("rebase", f"origin/{branch}", cwd=repo_dir)
@@ -157,8 +164,34 @@ def publish_device_partition(
         if not any(marker in push.stderr for marker in _NON_FAST_FORWARD_MARKERS):
             raise GitCommandError(("push",), push.returncode, push.stderr)
 
+        progress("push rejected (non-fast-forward) — another device published first, retrying")
+
     raise GitCommandError(
         ("push",), 1, f"exceeded {max_retries} retries without a fast-forward push"
+    )
+
+
+def publish_device_partition(
+    repo_dir: Path,
+    *,
+    device_id: str,
+    branch: str,
+    commit_message: str,
+    max_retries: int = 3,
+    on_progress: Callable[[str], None] | None = None,
+) -> PublishResult:
+    """Commit and push only ``device_id``'s own data partition, never force-pushing.
+
+    Assumes the caller has already written that device's daily record
+    files into ``repo_dir/data/v1/devices/<device_id>/``.
+    """
+    return commit_and_push(
+        repo_dir,
+        paths=[_device_partition(device_id)],
+        branch=branch,
+        commit_message=commit_message,
+        max_retries=max_retries,
+        on_progress=on_progress,
     )
 
 
