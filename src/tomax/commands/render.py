@@ -1,10 +1,8 @@
-"""Render a local preview of the profile README dashboard from this device's own ledger data.
+"""Render a local preview of the profile README scorecard from local ledger data.
 
-Captures this device's interactive dashboard as a single PNG screenshot and
-writes the managed README section that embeds it. Entirely local — never
-touches Git or the network. Cross-device aggregation only happens once records
-are published and picked up by the profile repository's own GitHub Action
-(see ``templates/github-workflow.yml``).
+Writes a compact SVG scorecard and managed README section entirely locally —
+never touching Git or the network. Cross-device aggregation happens only once
+records are published and picked up by the profile repository's GitHub Action.
 """
 
 from __future__ import annotations
@@ -14,7 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from tomax.dashboard.export import export_dashboard_png
+from tomax.aggregate import validate_and_partition
 from tomax.ledger.repository import LedgerRepository
 from tomax.privacy import PrivacyPolicy
 from tomax.public_data import stage_daily_records
@@ -23,6 +21,7 @@ from tomax.render.markdown import (
     render_dashboard_markdown,
     update_readme,
 )
+from tomax.render.scorecard import render_scorecard_svg
 
 
 def _write_if_changed(path: Path, content: str | bytes) -> bool:
@@ -62,10 +61,8 @@ def render(
 ) -> RenderResult:
     """Regenerate this device's local dashboard preview. Returns whether anything changed.
 
-    ``on_progress``, if given, is called with a short human-readable message
-    before each potentially slow step (ledger read, staging, UI build,
-    headless Chromium screenshot) — the same optional-callback pattern
-    ``on_collected`` uses in :mod:`tomax.commands.dashboard`.
+    ``on_progress``, if given, is called before each potentially slow ledger
+    read or staged-record write.
     """
     progress = on_progress or (lambda _message: None)
 
@@ -79,31 +76,18 @@ def render(
 
     progress(f"staging sanitized daily aggregates for device {device_id}")
     device_data_dir = output_dir / "data" / "v1" / "devices" / device_id
-    stage_daily_records(
+    payloads = stage_daily_records(
         device_data_dir, device_id=device_id, records=records, privacy_policy=privacy_policy
     )
 
-    screenshot_path = output_dir / DASHBOARD_IMAGE_PATH
-    tmp_png = screenshot_path.parent / ".dashboard.png.tmp"
-    tmp_png.parent.mkdir(parents=True, exist_ok=True)
-    export_dashboard_png(
-        tmp_png,
-        ledger_path=ledger_path,
-        all_devices=False,
-        repo_target=None,
-        privacy_policy=privacy_policy,
-        today=today,
-        ui_dir=ui_dir,
-        tmp_stage_dir=tmp_stage_dir,
-        pie_top_n=pie_top_n,
-        bar_chart_threshold_days=bar_chart_threshold_days,
-        force_build=force_build,
-        include_cache_tokens=include_cache_tokens,
-        on_progress=on_progress,
+    valid_payloads = validate_and_partition(
+        [(device_id, payload) for payload in payloads], today=today
+    ).valid_payloads
+    scorecard_path = output_dir / DASHBOARD_IMAGE_PATH
+    svg = render_scorecard_svg(
+        valid_payloads, today=today, include_cache_tokens=include_cache_tokens
     )
-    png_bytes = tmp_png.read_bytes()
-    tmp_png.unlink(missing_ok=True)
-    changed = _write_if_changed(screenshot_path, png_bytes)
+    changed = _write_if_changed(scorecard_path, svg)
 
     progress("writing README")
     readme_path = output_dir / "README.md"

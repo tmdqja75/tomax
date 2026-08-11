@@ -17,6 +17,10 @@ def test_section_contains_single_screenshot_reference():
         assert stale not in md
 
 
+def test_section_references_the_compact_svg_scorecard() -> None:
+    assert DASHBOARD_IMAGE_PATH == "assets/tomax/dashboard.svg"
+
+
 def test_section_uses_custom_image_path():
     md = render_dashboard_markdown(image_path="x/y/dash.png")
     assert "](x/y/dash.png)" in md
