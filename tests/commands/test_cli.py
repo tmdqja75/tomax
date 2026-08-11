@@ -100,7 +100,7 @@ def test_schedule_remove_reports_when_nothing_was_installed(tmp_path, monkeypatc
 def test_init_command_sets_repo_target(tmp_path, monkeypatch) -> None:
     _patch_local_paths(monkeypatch, tmp_path)
 
-    result = runner.invoke(app, ["init", "--repo", "tmdqja75/tmdqja75"])
+    result = runner.invoke(app, ["init", "--repo", "tmdqja75/tmdqja75", "--no-dashboard"])
 
     assert result.exit_code == 0
     assert "tmdqja75/tmdqja75" in result.stdout

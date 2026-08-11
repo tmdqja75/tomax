@@ -192,15 +192,19 @@ GitHub token.
 
 ```sh
 gh auth status
-uv run tomax init --repo OWNER/PROFILE-REPO
+uv run tomax init
 uv run tomax collect
 uv run tomax render --output-dir ./tomax-preview
 uv run tomax publish
 ```
 
-`init` is local-only: it records the `OWNER/REPO` target and ensures the local
-device ID exists. `publish` then stages only this installation's sanitized
-files under:
+`init` prompts for the repo target and, if you'd like, walks you through
+registering the usage dashboard in that repo's README — or run it
+non-interactively with `tomax init --repo OWNER/PROFILE-REPO --dashboard
+--insert-line N --yes` (see `tomax init --help`). Declining the dashboard
+prompt (or passing `--no-dashboard`) keeps `init` local-only: it just
+records the `OWNER/REPO` target and ensures the local device ID exists.
+`publish` then stages only this installation's sanitized files under:
 
 ```text
 data/v1/devices/<opaque-device-id>/<YYYY-MM-DD>.json
@@ -211,12 +215,14 @@ rebases before pushing, retries bounded non-fast-forward races, and never
 force-pushes. Use `--branch` to select a target branch or `--clone-dir` to use
 an explicit local checkout.
 
-To generate an aggregated profile dashboard, copy
-[`templates/github-workflow.yml`](templates/github-workflow.yml) into the
-profile repository as `.github/workflows/tomax-dashboard.yml`. The
-workflow validates device/day records and updates the managed README section
-and chart assets only when data beneath `data/v1/**` changes. Review and enable
-that workflow only when you are ready to publish sanitized aggregates.
+To generate an aggregated profile dashboard, run `tomax init` and answer
+"yes" when asked to register a usage dashboard — it walks you through
+choosing where the dashboard section goes in your README, previews the
+change, and installs
+[`.github/workflows/tomax-dashboard.yml`](src/tomax/templates/github-workflow.yml)
+for you (see `tomax init --help` for the non-interactive flags). The workflow
+validates device/day records and updates the managed README section and
+dashboard image only when data beneath `data/v1/**` changes.
 
 ## Optional daily macOS schedule
 

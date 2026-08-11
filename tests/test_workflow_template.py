@@ -18,7 +18,7 @@ from pathlib import Path
 from tomax.public_data import write_daily_record
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-WORKFLOW_PATH = REPO_ROOT / "templates" / "github-workflow.yml"
+WORKFLOW_PATH = REPO_ROOT / "src" / "tomax" / "templates" / "github-workflow.yml"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "build_profile_dashboard.py"
 
 

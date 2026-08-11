@@ -22,7 +22,7 @@ from tomax.commands.collect import (
     DEFAULT_CODEX_SESSIONS_DIR,
     DEFAULT_HERMES_STATE_DB,
 )
-from tomax.commands.publish import GhAuthError
+from tomax.commands.publish import GhAuthError, check_gh_auth
 from tomax.dashboard.ui_build import UIBuildError
 from tomax.config import (
     config_file_path,
@@ -33,7 +33,8 @@ from tomax.config import (
     save_config,
 )
 from tomax.privacy import PrivacyPolicy
-from tomax.publish.git import GitCommandError
+from tomax.publish.git import GitCommandError, clone_or_open
+from tomax.render.markdown import render_dashboard_markdown
 from tomax.schedule.launchd import LaunchctlError
 
 app = typer.Typer(
@@ -54,11 +55,95 @@ def command_group() -> None:
 
 @app.command()
 def init(
-    repo: str = typer.Option(..., "--repo", help="GitHub profile repo in OWNER/REPO form."),
+    repo: str | None = typer.Option(
+        None, "--repo", help="GitHub profile repo in OWNER/REPO form. Prompted for if omitted."
+    ),
+    dashboard: bool | None = typer.Option(
+        None,
+        "--dashboard/--no-dashboard",
+        help="Register the usage dashboard in the profile repo's README. Prompted for if omitted.",
+    ),
+    insert_line: int = typer.Option(
+        -1,
+        "--insert-line",
+        help="README line to insert the dashboard section after, on first install only "
+        "(-1 = prompt interactively, 0 = very top).",
+    ),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip the final push confirmation for dashboard registration."
+    ),
 ) -> None:
-    """Set the target GitHub profile repository for this install (local only, no network)."""
-    config = init_command.init(repo, config_path=config_file_path(), ledger_path=ledger_file_path())
+    """Set the profile repo target, and optionally register the usage dashboard in its README."""
+    resolved_repo = repo or typer.prompt("GitHub profile repo (OWNER/REPO)")
+    config = init_command.init(
+        resolved_repo, config_path=config_file_path(), ledger_path=ledger_file_path()
+    )
     typer.echo(f"tomax: repo target set to {config.repo_target}")
+
+    wants_dashboard = (
+        dashboard
+        if dashboard is not None
+        else typer.confirm("Add a usage dashboard to this repo's README?")
+    )
+    if not wants_dashboard:
+        return
+
+    clone_dir = ledger_file_path().parent / "profile-repo"
+    repo_url = f"https://github.com/{config.repo_target}.git"
+
+    try:
+        typer.echo("tomax: checking gh auth status")
+        check_gh_auth()
+        typer.echo(f"tomax: cloning/opening profile repo at {clone_dir}")
+        repo_dir = clone_or_open(repo_url, clone_dir, branch="main")
+    except GhAuthError as error:
+        typer.echo(f"tomax: gh auth check failed: {error}")
+        raise typer.Exit(code=1) from error
+    except GitCommandError as error:
+        typer.echo(f"tomax: could not open the profile repo: {error}")
+        raise typer.Exit(code=1) from error
+
+    readme_path = repo_dir / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+
+    if init_command.readme_already_registered(readme_text):
+        typer.echo("tomax: dashboard already registered — nothing to do")
+        return
+
+    if insert_line >= 0:
+        after_line: int | None = insert_line
+    else:
+        for line in init_command.numbered_readme_lines(readme_text):
+            typer.echo(line)
+        chosen = typer.prompt(
+            "Insert the dashboard section after which line? (blank = end of file)",
+            default=-1,
+            show_default=False,
+        )
+        after_line = None if chosen < 0 else chosen
+
+    _updated_readme, preview = init_command.preview_insertion(
+        readme_text, after_line=after_line, dashboard_markdown=render_dashboard_markdown()
+    )
+    typer.echo("tomax: about to insert:")
+    typer.echo(preview)
+    typer.echo(
+        f"tomax: will commit README.md + {init_command.WORKFLOW_RELATIVE_PATH} and push "
+        f"to {config.repo_target}"
+    )
+    if not yes and not typer.confirm("Proceed?"):
+        typer.echo("tomax: dashboard registration cancelled — nothing pushed")
+        return
+
+    result = init_command.register_dashboard(
+        repo_dir,
+        after_line=after_line,
+        on_progress=lambda message: typer.echo(f"tomax: {message}"),
+    )
+    if result.status == "already_registered":
+        typer.echo("tomax: dashboard already registered — nothing to do")
+    else:
+        typer.echo(f"tomax: dashboard registered (commit {result.commit_sha})")
 
 
 @app.command()
@@ -230,6 +315,7 @@ def render(
                 bar_chart_threshold_days=config.bar_chart_threshold_days,
                 force_build=rebuild,
                 include_cache_tokens=not exclude_cache_tokens,
+                on_progress=lambda message: typer.echo(f"tomax: {message}"),
             )
         except UIBuildError as error:
             typer.echo(f"tomax: {error}")
@@ -327,6 +413,7 @@ def publish(
             branch=branch,
             privacy_policy=PrivacyPolicy.from_config(config),
             today=now.date(),
+            on_progress=lambda message: typer.echo(f"tomax: {message}"),
         )
     except GhAuthError as error:
         typer.echo(f"tomax: gh auth check failed: {error}")

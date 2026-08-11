@@ -12,7 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from tomax.publish.git import GitCommandError, PublishResult, clone_or_open, publish_device_partition
+from tomax.publish.git import (
+    GitCommandError,
+    PublishResult,
+    clone_or_open,
+    commit_and_push,
+    publish_device_partition,
+)
 
 
 def _run(cwd: Path, *args: str) -> str:
@@ -317,3 +323,51 @@ def test_publish_rejects_a_non_positive_max_retries_without_committing(tmp_path)
 def test_clone_or_open_raises_git_command_error_on_failure(tmp_path) -> None:
     with pytest.raises(GitCommandError):
         clone_or_open("/this/path/does/not/exist.git", tmp_path / "clone", branch="main")
+
+
+# --- commit_and_push: generalized multi-path commit/push -------------------
+
+
+def test_commit_and_push_stages_multiple_paths_together(tmp_path) -> None:
+    origin = _init_bare_origin(tmp_path)
+    repo_dir = _clone(origin, tmp_path / "clone")
+    (repo_dir / "README.md").write_text("updated\n", encoding="utf-8")
+    workflow_dir = repo_dir / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "tomax-dashboard.yml").write_text("name: x\n", encoding="utf-8")
+
+    result = commit_and_push(
+        repo_dir,
+        paths=["README.md", ".github/workflows/tomax-dashboard.yml"],
+        branch="main",
+        commit_message="chore: install tomax usage dashboard",
+    )
+
+    assert result.pushed is True
+    committed_files = _run(repo_dir, "show", "--name-only", "--pretty=format:", "HEAD").split()
+    assert "README.md" in committed_files
+    assert ".github/workflows/tomax-dashboard.yml" in committed_files
+
+
+def test_commit_and_push_is_a_no_op_when_none_of_the_paths_exist(tmp_path) -> None:
+    origin = _init_bare_origin(tmp_path)
+    repo_dir = _clone(origin, tmp_path / "clone")
+
+    result = commit_and_push(
+        repo_dir, paths=["does-not-exist.txt"], branch="main", commit_message="chore: x"
+    )
+
+    assert result == PublishResult(pushed=False, commit_sha=None, attempts=0)
+
+
+def test_publish_device_partition_still_behaves_identically(tmp_path) -> None:
+    origin = _init_bare_origin(tmp_path)
+    repo_dir = _clone(origin, tmp_path / "clone")
+    _write_device_file(repo_dir, "device-a", "2026-07-10.json", '{"date": "2026-07-10"}')
+
+    result = publish_device_partition(
+        repo_dir, device_id="device-a", branch="main", commit_message="chore: update device-a"
+    )
+
+    assert result.pushed is True
+    assert result.commit_sha is not None

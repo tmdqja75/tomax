@@ -54,20 +54,43 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+          cache: "pip"
+          cache-dependency-path: .tomax-src/pyproject.toml
 
       - name: Enable pnpm
         run: corepack enable
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: .tomax-src/dashboard-ui/pnpm-lock.yaml
+
       - name: Install tomax
         run: pip install ./.tomax-src
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('.tomax-src/uv.lock') }}
+
+      - name: Install Playwright OS dependencies
+        run: python -m playwright install-deps chromium
+
       - name: Install Chromium for Playwright
-        run: python -m playwright install --with-deps chromium
+        run: python -m playwright install chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Cache dashboard UI build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tomax-src/dashboard-ui/node_modules
+            .tomax-src/dashboard-ui/dist
+          key: dashboard-ui-${{ runner.os }}-${{ hashFiles('.tomax-src/dashboard-ui/pnpm-lock.yaml') }}-${{ hashFiles('.tomax-src/dashboard-ui/src/**') }}
 
       - name: Validate public records and render dashboard
         run: |
