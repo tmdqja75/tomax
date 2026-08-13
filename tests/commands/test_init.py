@@ -6,13 +6,16 @@ import subprocess
 
 import pytest
 
+import tomax.commands.init as init_module
 from tomax.commands.init import (
+    WORKFLOW_RELATIVE_PATH,
     DashboardRegistrationResult,
     init,
     numbered_readme_lines,
     preview_insertion,
     readme_already_registered,
     register_dashboard,
+    sync_dashboard_workflow,
 )
 from tomax.config import AppConfig, get_or_create_device_id, load_config, save_config
 from tomax.publish.git import clone_or_open
@@ -179,3 +182,32 @@ def test_register_dashboard_skips_when_already_registered(tmp_path):
 
     assert result == DashboardRegistrationResult(status="already_registered", commit_sha=None)
     assert (repo_dir / ".github" / "workflows" / "tomax-dashboard.yml").exists() is False
+
+
+# --- sync_dashboard_workflow -------------------------------------------------
+
+
+def test_sync_dashboard_workflow_is_a_no_op_when_no_workflow_file_exists(tmp_path):
+    assert sync_dashboard_workflow(tmp_path) is False
+    assert (tmp_path / WORKFLOW_RELATIVE_PATH).exists() is False
+
+
+def test_sync_dashboard_workflow_is_a_no_op_when_already_current(tmp_path):
+    workflow_path = tmp_path / WORKFLOW_RELATIVE_PATH
+    workflow_path.parent.mkdir(parents=True)
+    current = init_module._WORKFLOW_TEMPLATE_PATH.read_text(encoding="utf-8")
+    workflow_path.write_text(current, encoding="utf-8")
+
+    assert sync_dashboard_workflow(tmp_path) is False
+    assert workflow_path.read_text(encoding="utf-8") == current
+
+
+def test_sync_dashboard_workflow_overwrites_a_stale_file_and_reports_true(tmp_path):
+    workflow_path = tmp_path / WORKFLOW_RELATIVE_PATH
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: stale\n", encoding="utf-8")
+
+    assert sync_dashboard_workflow(tmp_path) is True
+    assert workflow_path.read_text(encoding="utf-8") == init_module._WORKFLOW_TEMPLATE_PATH.read_text(
+        encoding="utf-8"
+    )

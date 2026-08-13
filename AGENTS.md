@@ -28,7 +28,7 @@ See [README.md](README.md) for the user-facing guide.
 | `collect` | Read sources and persist normalized records (`--dry-run` to preview). |
 | `render` | Write a fully local README scorecard preview: SVG + markdown (no network). |
 | `dashboard` | Collects fresh local usage (like `collect`), then serves an interactive localhost chart dashboard (see below); supports `--lang en\|ko`. `--all-devices` merges the freshly collected local ledger with every *other* device's last-published data (own remote copy excluded). `--claude-code-only-range` trims every chart's payloads to the span Claude Code has data for (`aggregate.agent_available_date_range` + `select_date_range`), across all agents, not just Claude Code. |
-| `publish` | Stage and push this device's sanitized aggregates (opt-in, `gh` auth). |
+| `publish` | Stage and push this device's sanitized aggregates (opt-in, `gh` auth); also refreshes the installed dashboard workflow file in the same push if it's stale against the packaged template. |
 | `init` | Interactive: record `OWNER/REPO` target, ensure device ID, and optionally register the usage dashboard in the profile repo's README (`gh auth status`-gated, only on explicit opt-in). Every prompt has a flag override (`--repo`, `--dashboard`/`--no-dashboard`, `--insert-line`, `--yes`) for non-interactive use. |
 | `schedule` | Install/remove a `launchd` daily collect+publish job; preserves the installer `PATH` for `gh`/`git`. |
 
