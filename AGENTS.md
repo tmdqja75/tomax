@@ -20,6 +20,25 @@ See [README.md](README.md) for the user-facing guide.
 - Build: `uv build`
 - CLI help: `uv run tomax --help`
 
+### Release process
+
+`src/tomax/templates/github-workflow.yml`'s bootstrap default (`AGENT_USAGE_REF
+|| 'v<version>'`) pins every newly-installed profile repo's Action to a tag,
+not `main` — a `main` default means any breaking change on `main` reaches
+every already-installed user's Action the instant it lands (this happened once:
+the scorecard rename broke `--dashboard-png`/`--ui-dir` for every existing
+install until the template was pinned by hand). Cutting a release:
+
+1. Bump `version` in `pyproject.toml`.
+2. Update the `ref:` default in `src/tomax/templates/github-workflow.yml` to
+   match (`tests/test_workflow_template.py::test_workflow_template_defaults_
+   the_collector_ref_to_the_current_release_tag` fails otherwise).
+3. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+Already-installed repos pick up the new tag the next time `tomax publish` runs
+(`sync_dashboard_workflow` rewrites a stale installed workflow file), or
+immediately if the user re-runs `tomax init`.
+
 ### CLI commands
 
 | Command | Purpose |

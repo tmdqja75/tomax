@@ -45,9 +45,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: tmdqja75/tomax
-          # Pin this to a released tag once tomax starts publishing
-          # tagged releases; 'main' is a bootstrap default.
-          ref: ${{ vars.AGENT_USAGE_REF || 'main' }}
+          # Defaults to the tag matching the tomax version this workflow
+          # template shipped with, so an already-installed repo only picks
+          # up a behavior change when the user upgrades tomax and re-syncs
+          # this file (via `tomax init` or `tomax publish`) — never the
+          # instant something merges to main. Set the AGENT_USAGE_REF repo
+          # variable to track a different tag/branch instead.
+          ref: ${{ vars.AGENT_USAGE_REF || 'v0.1.0' }}
           path: .tomax-src
 
       - name: Set up Python
