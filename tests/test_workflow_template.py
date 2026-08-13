@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tomllib
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -71,6 +72,25 @@ def test_workflow_template_is_narrow_and_serialized() -> None:
     assert "data/v1/**" in trigger_section
     assert "README.md" not in trigger_section and "assets/tomax" not in trigger_section
     assert "contents: write" in text and "cancel-in-progress: false" in text
+
+
+def test_workflow_template_defaults_the_collector_ref_to_the_current_release_tag() -> None:
+    """The bootstrap default must track a release tag, not a moving branch.
+
+    ``main`` can carry breaking changes (argv/behavior) the instant they
+    land; every already-installed user's Action re-fetches ``ref`` on its
+    next run and would break immediately (this happened: the scorecard
+    rename broke every installed workflow still pinned to 'main' until it
+    was pinned by hand). Pinning the packaged template's default to this
+    release's own tag means a user only moves to a new tomax behavior when
+    they explicitly upgrade and re-run ``tomax init``/``publish`` picks up
+    the new template — not the instant upstream ``main`` changes.
+    """
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = pyproject["project"]["version"]
+
+    assert f"vars.AGENT_USAGE_REF || 'v{version}'" in text
 
 
 def test_workflow_uses_the_pure_svg_scorecard_without_browser_dependencies() -> None:
