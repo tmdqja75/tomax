@@ -9,11 +9,11 @@ from __future__ import annotations
 MARKER_START = "<!-- tomax:start -->"
 MARKER_END = "<!-- tomax:end -->"
 
-DASHBOARD_IMAGE_PATH = "assets/tomax/dashboard.png"
+DASHBOARD_IMAGE_PATH = "assets/tomax/dashboard.svg"
 
 
 def render_dashboard_markdown(*, image_path: str = DASHBOARD_IMAGE_PATH) -> str:
-    """Render the managed dashboard section: a single dashboard screenshot."""
+    """Render the managed dashboard section: a single SVG scorecard."""
     sections = [
         MARKER_START,
         "## Agent Usage",

@@ -4,16 +4,7 @@ from pathlib import Path
 from tomax.commands import render as render_command
 
 
-def test_render_writes_screenshot_and_readme(tmp_path, monkeypatch):
-    calls = {"export": 0}
-
-    def fake_export(output_path, **kwargs):
-        calls["export"] += 1
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(b"\x89PNG\r\n\x1a\nFAKE")
-
-    monkeypatch.setattr(render_command, "export_dashboard_png", fake_export)
-
+def test_render_writes_scorecard_and_readme(tmp_path):
     out = tmp_path / "preview"
     ledger = tmp_path / "ledger.sqlite3"
     result = render_command.render(
@@ -25,20 +16,15 @@ def test_render_writes_screenshot_and_readme(tmp_path, monkeypatch):
         tmp_stage_dir=tmp_path / "stage",
     )
 
-    assert calls["export"] == 1
-    assert (out / "assets" / "tomax" / "dashboard.png").is_file()
+    scorecard = out / "assets" / "tomax" / "dashboard.svg"
+    assert scorecard.is_file()
+    assert scorecard.read_text(encoding="utf-8").startswith("<svg")
     readme = (out / "README.md").read_text(encoding="utf-8")
-    assert "assets/tomax/dashboard.png" in readme
+    assert "assets/tomax/dashboard.svg" in readme
     assert result.changed is True
 
 
-def test_render_idempotent_second_run(tmp_path, monkeypatch):
-    def fake_export(output_path, **kwargs):
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(b"\x89PNG\r\n\x1a\nFAKE")
-
-    monkeypatch.setattr(render_command, "export_dashboard_png", fake_export)
-
+def test_render_idempotent_second_run(tmp_path):
     out = tmp_path / "preview"
     kwargs = dict(
         ledger_path=tmp_path / "ledger.sqlite3",

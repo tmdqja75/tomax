@@ -1,5 +1,5 @@
 # Regenerates the managed Agent Usage dashboard section in README.md
-# (screenshotting the interactive dashboard to assets/tomax/dashboard.png)
+# (rendering a compact SVG scorecard at assets/tomax/dashboard.svg)
 # whenever a device pushes new sanitized daily aggregates.
 #
 # Install this file as .github/workflows/tomax-dashboard.yml in your
@@ -57,54 +57,21 @@ jobs:
           cache: "pip"
           cache-dependency-path: .tomax-src/pyproject.toml
 
-      - name: Enable pnpm
-        run: corepack enable
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-          cache-dependency-path: .tomax-src/dashboard-ui/pnpm-lock.yaml
-
       - name: Install tomax
         run: pip install ./.tomax-src
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('.tomax-src/uv.lock') }}
-
-      - name: Install Playwright OS dependencies
-        run: python -m playwright install-deps chromium
-
-      - name: Install Chromium for Playwright
-        run: python -m playwright install chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-
-      - name: Cache dashboard UI build
-        uses: actions/cache@v4
-        with:
-          path: |
-            .tomax-src/dashboard-ui/node_modules
-            .tomax-src/dashboard-ui/dist
-          key: dashboard-ui-${{ runner.os }}-${{ hashFiles('.tomax-src/dashboard-ui/pnpm-lock.yaml') }}-${{ hashFiles('.tomax-src/dashboard-ui/src/**') }}
-
-      - name: Validate public records and render dashboard
+      - name: Validate public records and render scorecard
         run: |
           python .tomax-src/scripts/build_profile_dashboard.py \
             --data-dir data/v1/devices \
             --readme README.md \
-            --dashboard-png assets/tomax/dashboard.png \
-            --ui-dir .tomax-src/dashboard-ui
+            --dashboard-svg assets/tomax/dashboard.svg
 
       - name: Commit and push if the dashboard changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md assets/tomax/dashboard.png
+          git add README.md assets/tomax/dashboard.svg
           if git status --porcelain | grep -q .; then
             git commit -m "chore: update agent usage dashboard"
             git push origin HEAD:${{ github.ref_name }}

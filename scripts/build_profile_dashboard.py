@@ -26,19 +26,16 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from tomax.aggregate import validate_and_partition
-from tomax.dashboard.export import screenshot_payload
-from tomax.dashboard.ui_build import ensure_build
-from tomax.render.dashboard_data import build_dashboard_data
 from tomax.render.markdown import (
     DASHBOARD_IMAGE_PATH,
     render_dashboard_markdown,
     update_readme,
 )
+from tomax.render.scorecard import render_scorecard_svg
 
 DEFAULT_DATA_DIR = Path("data/v1/devices")
 DEFAULT_README = Path("README.md")
-DEFAULT_DASHBOARD_PNG = Path(DASHBOARD_IMAGE_PATH)
-DEFAULT_UI_DIR = Path(".tomax-src/dashboard-ui")
+DEFAULT_DASHBOARD_SVG = Path(DASHBOARD_IMAGE_PATH)
 
 
 def _load_entries(data_dir: Path) -> list[tuple[str, object]]:
@@ -86,17 +83,15 @@ def build(
     *,
     data_dir: Path,
     readme_path: Path,
-    dashboard_png_path: Path,
-    ui_dir: Path,
+    dashboard_svg_path: Path,
     today: date,
     generated_at: str,
-    pie_top_n: int = 6,
 ) -> bool:
-    """Regenerate the README and dashboard screenshot. Returns True if anything changed.
+    """Regenerate the README and compact SVG scorecard. Returns True if anything changed.
 
     Reads the cross-device records locally from ``data_dir`` (the profile repo
-    checkout already contains them — no network clone), builds the same
-    payload the interactive dashboard uses, and screenshots it.
+    checkout already contains them — no network), then renders the compact
+    static scorecard directly with no browser or UI build.
     """
     entries = _load_entries(data_dir)
     partition = validate_and_partition(entries, today=today)
@@ -106,17 +101,10 @@ def build(
             f"device={issue.device_id} date={issue.date} reason={issue.reason}",
             file=sys.stderr,
         )
-    payload = build_dashboard_data(partition.valid_payloads, today=today, pie_top_n=pie_top_n)
+    svg = render_scorecard_svg(partition.valid_payloads, today=today)
+    changed = _write_if_changed(dashboard_svg_path, svg)
 
-    dist_dir = ensure_build(ui_dir)
-    tmp_png = dashboard_png_path.parent / ".dashboard.png.tmp"
-    tmp_png.parent.mkdir(parents=True, exist_ok=True)
-    screenshot_payload(payload, tmp_png, dist_dir=dist_dir)
-    png_bytes = tmp_png.read_bytes()
-    tmp_png.unlink(missing_ok=True)
-    changed = _write_if_changed(dashboard_png_path, png_bytes)
-
-    image_ref = _readme_relative_path(dashboard_png_path, readme_path=readme_path)
+    image_ref = _readme_relative_path(dashboard_svg_path, readme_path=readme_path)
     existing_readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
     updated = update_readme(existing_readme, render_dashboard_markdown(image_path=image_ref))
     changed = _write_if_changed(readme_path, updated) or changed
@@ -127,9 +115,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--readme", type=Path, default=DEFAULT_README)
-    parser.add_argument("--dashboard-png", type=Path, default=DEFAULT_DASHBOARD_PNG)
-    parser.add_argument("--ui-dir", type=Path, default=DEFAULT_UI_DIR)
-    parser.add_argument("--pie-top-n", type=int, default=6)
+    parser.add_argument("--dashboard-svg", type=Path, default=DEFAULT_DASHBOARD_SVG)
     parser.add_argument("--today", type=date.fromisoformat, default=None)
     parser.add_argument("--generated-at", type=str, default=None)
     return parser.parse_args(argv)
@@ -143,11 +129,10 @@ def main(argv: list[str] | None = None) -> int:
     changed = build(
         data_dir=args.data_dir,
         readme_path=args.readme,
-        dashboard_png_path=args.dashboard_png,
-        ui_dir=args.ui_dir,
+        dashboard_svg_path=args.dashboard_svg,
         today=today,
         generated_at=generated_at,
-        pie_top_n=args.pie_top_n,
+
     )
     print("tomax: dashboard changed" if changed else "tomax: dashboard unchanged")
     return 0
