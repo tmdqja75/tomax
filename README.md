@@ -218,6 +218,12 @@ rebases before pushing, retries bounded non-fast-forward races, and never
 force-pushes. Use `--branch` to select a target branch or `--clone-dir` to use
 an explicit local checkout.
 
+If the profile repo already has `.github/workflows/tomax-dashboard.yml`
+installed and it's out of date with the packaged template (e.g. after
+upgrading `tomax`), `publish` rewrites it and includes it in the same push —
+so a scheduled `publish` keeps the installed workflow current without
+re-running `tomax init`.
+
 To generate an aggregated profile dashboard, run `tomax init` and answer
 "yes" when asked to register a usage dashboard — it walks you through
 choosing where the dashboard section goes in your README, previews the

@@ -17,6 +17,7 @@ from tomax.publish.git import (
     PublishResult,
     clone_or_open,
     commit_and_push,
+    device_partition_path,
     publish_device_partition,
 )
 
@@ -81,6 +82,13 @@ def test_clone_or_open_reuses_an_existing_clone(tmp_path) -> None:
 
     assert second == first
     assert (second / "local-only.txt").exists()
+
+
+# --- device_partition_path --------------------------------------------------
+
+
+def test_device_partition_path_scopes_to_the_devices_own_directory():
+    assert device_partition_path("device-a") == "data/v1/devices/device-a"
 
 
 # --- publish_device_partition: no-op / basic publish -----------------------

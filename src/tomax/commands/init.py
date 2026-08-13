@@ -68,6 +68,28 @@ def preview_insertion(
     return updated, preview
 
 
+def sync_dashboard_workflow(repo_dir: Path) -> bool:
+    """Overwrite an out-of-date installed workflow file with the current template.
+
+    Does nothing (and returns ``False``) if the repo has no installed
+    workflow file at all — that means the dashboard was never registered
+    or the user opted out, and this must never install it as a side
+    effect. Returns ``True`` only when the file existed and its content
+    actually changed, so the caller knows whether to include it in a
+    commit.
+    """
+    workflow_path = repo_dir / WORKFLOW_RELATIVE_PATH
+    if not workflow_path.exists():
+        return False
+
+    current_template = _WORKFLOW_TEMPLATE_PATH.read_text(encoding="utf-8")
+    if workflow_path.read_text(encoding="utf-8") == current_template:
+        return False
+
+    workflow_path.write_text(current_template, encoding="utf-8")
+    return True
+
+
 @dataclass(frozen=True, slots=True)
 class DashboardRegistrationResult:
     """The outcome of one ``register_dashboard`` call."""

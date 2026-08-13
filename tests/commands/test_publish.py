@@ -14,7 +14,9 @@ from pathlib import Path
 
 import pytest
 
+import tomax.commands.init as init_module
 import tomax.commands.publish as publish_module
+from tomax.commands.init import WORKFLOW_RELATIVE_PATH
 from tomax.commands.publish import GhAuthError, check_gh_auth, publish
 from tomax.ledger.repository import LedgerRepository
 from tomax.models import NormalizedUsageRecord, SupportedAgent, TokenUsage
@@ -185,3 +187,55 @@ def test_publish_reuses_an_existing_clone_on_a_second_run(tmp_path) -> None:
 
     assert first.result.pushed is True
     assert second.result.pushed is False  # nothing changed since the first publish
+
+
+# --- publish: dashboard workflow sync ---------------------------------------
+
+
+def test_publish_refreshes_a_stale_dashboard_workflow_file(tmp_path) -> None:
+    origin = _init_bare_origin(tmp_path)
+    seed_clone = clone_or_open(str(origin), tmp_path / "seed-clone", branch="main")
+    _run(seed_clone, "config", "user.email", "test@example.com")
+    _run(seed_clone, "config", "user.name", "Test Author")
+    workflow_path = seed_clone / WORKFLOW_RELATIVE_PATH
+    workflow_path.parent.mkdir(parents=True)
+    workflow_path.write_text("name: stale\n", encoding="utf-8")
+    _run(seed_clone, "add", WORKFLOW_RELATIVE_PATH)
+    _run(seed_clone, "commit", "-m", "seed stale workflow")
+    _run(seed_clone, "push", "origin", "main")
+
+    ledger_path = tmp_path / "ledger.sqlite3"
+    _insert_record(ledger_path)
+
+    summary = publish(
+        ledger_path=ledger_path,
+        repo_url=str(origin),
+        clone_dir=tmp_path / "clone",
+        today=TODAY,
+        gh_auth_check=_noop_gh_auth,
+    )
+
+    assert summary.result.pushed is True
+
+    verify_dir = tmp_path / "verify"
+    clone_or_open(str(origin), verify_dir, branch="main")
+    current_template = init_module._WORKFLOW_TEMPLATE_PATH.read_text(encoding="utf-8")
+    assert (verify_dir / WORKFLOW_RELATIVE_PATH).read_text(encoding="utf-8") == current_template
+
+
+def test_publish_never_installs_a_workflow_file_that_was_never_registered(tmp_path) -> None:
+    origin = _init_bare_origin(tmp_path)
+    ledger_path = tmp_path / "ledger.sqlite3"
+    _insert_record(ledger_path)
+
+    publish(
+        ledger_path=ledger_path,
+        repo_url=str(origin),
+        clone_dir=tmp_path / "clone",
+        today=TODAY,
+        gh_auth_check=_noop_gh_auth,
+    )
+
+    verify_dir = tmp_path / "verify"
+    clone_or_open(str(origin), verify_dir, branch="main")
+    assert (verify_dir / WORKFLOW_RELATIVE_PATH).exists() is False

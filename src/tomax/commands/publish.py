@@ -14,10 +14,16 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from tomax.commands.init import WORKFLOW_RELATIVE_PATH, sync_dashboard_workflow
 from tomax.ledger.repository import LedgerRepository
 from tomax.privacy import PrivacyPolicy
 from tomax.public_data import stage_daily_records
-from tomax.publish.git import PublishResult, clone_or_open, publish_device_partition
+from tomax.publish.git import (
+    PublishResult,
+    clone_or_open,
+    commit_and_push,
+    device_partition_path,
+)
 
 
 class GhAuthError(RuntimeError):
@@ -89,10 +95,15 @@ def publish(
         device_dir, device_id=device_id, records=records, privacy_policy=privacy_policy
     )
 
+    paths = [device_partition_path(device_id)]
+    if sync_dashboard_workflow(repo_dir):
+        progress("installed dashboard workflow file was stale — refreshing it")
+        paths.append(WORKFLOW_RELATIVE_PATH)
+
     progress("committing and pushing device partition")
-    result = publish_device_partition(
+    result = commit_and_push(
         repo_dir,
-        device_id=device_id,
+        paths=paths,
         branch=branch,
         commit_message=f"chore: update {device_id} daily aggregates ({today.isoformat()})",
         on_progress=on_progress,

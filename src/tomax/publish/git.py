@@ -59,7 +59,7 @@ def clone_or_open(repo_url: str, local_path: Path, *, branch: str) -> Path:
     return local_path
 
 
-def _device_partition(device_id: str) -> str:
+def device_partition_path(device_id: str) -> str:
     return f"data/v1/devices/{device_id}"
 
 
@@ -187,7 +187,7 @@ def publish_device_partition(
     """
     return commit_and_push(
         repo_dir,
-        paths=[_device_partition(device_id)],
+        paths=[device_partition_path(device_id)],
         branch=branch,
         commit_message=commit_message,
         max_retries=max_retries,
