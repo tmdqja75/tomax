@@ -58,9 +58,9 @@ This re-reads full local source history (read-only) and fills in `model`
 only on already-ledgered rows that don't have one yet; it never inserts new
 rows or touches any other field, so it's safe to run more than once.
 
-Render a fully local dashboard preview after collecting. This command does not
-use Git or the network; it writes a preview README, sanitized daily records,
-and a screenshot of the dashboard to the chosen directory.
+Render a fully local README scorecard preview after collecting. This command
+does not use Git or the network; it writes a preview README, sanitized daily
+records, and a compact 30-day SVG scorecard to the chosen directory.
 
 ```sh
 uv run tomax render --output-dir ./tomax-preview
@@ -128,7 +128,10 @@ Flags:
   too (not just Claude Code's). Off by default.
 
 `tomax render` accepts the same `--exclude-cache-tokens` flag for its
-screenshot/README preview.
+SVG/README preview. The scorecard shows provider-aware cache-inclusive token
+use, a ranked agent mix, and the top five observed Skills and MCP servers. Its
+latest data point has a static marker plus a small best-effort outward SVG
+pulse; the marker remains visible if GitHub suppresses SVG animation.
 
 The dashboard renders six blocks: total token usage over the rolling window,
 usage by agent (ring chart), usage by model (ranked bar chart), Skills and
@@ -222,7 +225,9 @@ change, and installs
 [`.github/workflows/tomax-dashboard.yml`](src/tomax/templates/github-workflow.yml)
 for you (see `tomax init --help` for the non-interactive flags). The workflow
 validates device/day records and updates the managed README section and
-dashboard image only when data beneath `data/v1/**` changes.
+`assets/tomax/dashboard.svg` only when data beneath `data/v1/**` changes. It
+renders the SVG directly from sanitized aggregates, without a Node or browser
+build.
 
 ## Optional daily macOS schedule
 

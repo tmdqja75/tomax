@@ -26,7 +26,7 @@ See [README.md](README.md) for the user-facing guide.
 | --- | --- |
 | `doctor` | Read-only diagnostics; no ledger writes, no checkpoint advance. |
 | `collect` | Read sources and persist normalized records (`--dry-run` to preview). |
-| `render` | Write a fully local dashboard preview screenshot (no network). |
+| `render` | Write a fully local README scorecard preview: SVG + markdown (no network). |
 | `dashboard` | Collects fresh local usage (like `collect`), then serves an interactive localhost chart dashboard (see below); supports `--lang en\|ko`. `--all-devices` merges the freshly collected local ledger with every *other* device's last-published data (own remote copy excluded). `--claude-code-only-range` trims every chart's payloads to the span Claude Code has data for (`aggregate.agent_available_date_range` + `select_date_range`), across all agents, not just Claude Code. |
 | `publish` | Stage and push this device's sanitized aggregates (opt-in, `gh` auth). |
 | `init` | Interactive: record `OWNER/REPO` target, ensure device ID, and optionally register the usage dashboard in the profile repo's README (`gh auth status`-gated, only on explicit opt-in). Every prompt has a flag override (`--repo`, `--dashboard`/`--no-dashboard`, `--insert-line`, `--yes`) for non-interactive use. |
@@ -36,9 +36,10 @@ See [README.md](README.md) for the user-facing guide.
 
 - `src/tomax/` — package source.
   - `aggregate.py` — validation, rolling windows, daily/token totals, record aggregation.
-  - `render/` — dashboard backends. `export.py` (screenshot via Playwright/Chromium),
-    `dashboard_data.py` (interactive `data.json` builder), `_counters.py` (shared rank/bucket helpers, backend-neutral).
-    `markdown.py` (assemble README with embedded screenshot).
+  - `render/` — dashboard backends. `scorecard.py` (pure-Python compact SVG scorecard,
+    no browser/Node), `dashboard_data.py` (interactive `data.json` builder), `_counters.py`
+    (shared rank/bucket helpers, backend-neutral). `markdown.py` (assemble README with
+    embedded SVG scorecard).
   - `dashboard/` — interactive dashboard: `payload.py` (assemble data.json from local
     or multi-device), `remote.py` (shallow-clone multi-device fetch), `server.py`
     (stdlib loopback HTTP server; injects `window.__LANG__` into served
