@@ -394,3 +394,32 @@ def test_stage_daily_records_applies_the_privacy_policy(tmp_path) -> None:
     content = (device_dir / "2026-07-10.json").read_text(encoding="utf-8")
     assert "internal-api-token-dashboard" not in content
     assert "(hidden)" in content
+
+
+def test_model_counters_include_cache_tokens_provider_aware() -> None:
+    records = [
+        _record(
+            fingerprint="fp-claude",
+            model="claude-sonnet-5",
+            tokens=TokenUsage(
+                input_tokens=10, output_tokens=5, cache_read_tokens=100, cache_write_tokens=20
+            ),
+        ),
+        _record(
+            agent=SupportedAgent.HERMES_AGENT,
+            fingerprint="fp-hermes",
+            model="gpt-5.6-terra",
+            tokens=TokenUsage(input_tokens=10, output_tokens=5, cache_read_tokens=100),
+        ),
+        # Codex cache reads are already a subset of input_tokens.
+        _record(
+            agent=SupportedAgent.CODEX,
+            fingerprint="fp-codex",
+            model="gpt-5.5",
+            tokens=TokenUsage(input_tokens=110, output_tokens=5, cache_read_tokens=100),
+        ),
+    ]
+
+    payload = build_daily_record(device_id="device-abc", day=DAY, records=records)
+
+    assert payload["models"] == {"claude-sonnet-5": 135, "gpt-5.6-terra": 115, "gpt-5.5": 115}

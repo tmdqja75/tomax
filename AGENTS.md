@@ -113,11 +113,13 @@ See [README.md](README.md) for the user-facing guide.
   client-side with `pieTopN` — bucketing per day first would make cross-day
   `Other` sums lossy.
 - Skills/MCP/model pies bucket beyond `--pie-top-n` (default 6) into one
-  `Other` entry. `models` sums each record's headline token total
-  (input+output+reasoning) per model name, sourced from `message.model`
-  (Claude Code), `session_model_usage.model` (Hermes), or the model on the
-  most recent `turn_context` event (Codex) — it deliberately excludes cache
-  tokens (see `public_data.build_daily_record`'s docstring).
+  `Other` entry. `models` sums each record's cache-inclusive token total
+  (input+output+reasoning+cache, provider-aware like
+  `aggregate.agent_effective_total`, via
+  `public_data.AGENTS_WITH_ADDITIVE_CACHE_READ`) per model name, sourced from
+  `message.model` (Claude Code), `session_model_usage.model` (Hermes), or the
+  model on the most recent `turn_context` event (Codex). It is baked into the
+  published per-day record, so `--exclude-cache-tokens` does not change it.
 - `tokensChartType` is computed server-side in `render/dashboard_data.py` from
   the window span vs. `AppConfig.bar_chart_threshold_days` (default 15, set via
   `tomax config bar-chart-threshold --days N`) — `"bar"` above the

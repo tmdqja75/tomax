@@ -17,7 +17,11 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from tomax.models import SourceStatus, SupportedAgent
-from tomax.public_data import MAX_NAME_ENTRIES_PER_CATEGORY, verify_checksum
+from tomax.public_data import (
+    AGENTS_WITH_ADDITIVE_CACHE_READ,
+    MAX_NAME_ENTRIES_PER_CATEGORY,
+    verify_checksum,
+)
 
 SCHEMA_VERSION = 2
 
@@ -41,9 +45,6 @@ _AGENT_TOTAL_FIELDS = (
 # tokens -- and a cache-exclusive total must instead subtract it back out of
 # headline_total, since headline_total already has it baked in. cache_write_tokens
 # has no such exception: it's additive to headline_total for every agent.
-_AGENTS_WITH_ADDITIVE_CACHE_READ = frozenset(
-    {SupportedAgent.CLAUDE_CODE.value, SupportedAgent.HERMES_AGENT.value}
-)
 
 
 def agent_effective_total(
@@ -57,7 +58,7 @@ def agent_effective_total(
     ``headline_total`` at the source, that means subtracting them back out.
     """
     total = agent_data["headline_total"]
-    if agent_name in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+    if agent_name in AGENTS_WITH_ADDITIVE_CACHE_READ:
         if include_cache_tokens:
             total += agent_data["cache_read_tokens"]
     elif not include_cache_tokens:
@@ -402,7 +403,7 @@ def daily_token_totals(
             has_available_source[date_str] = True
             input_tokens = agent_data["input_tokens"]
             cache_read_tokens = agent_data["cache_read_tokens"]
-            if agent_name not in _AGENTS_WITH_ADDITIVE_CACHE_READ:
+            if agent_name not in AGENTS_WITH_ADDITIVE_CACHE_READ:
                 input_tokens -= cache_read_tokens
             day_totals["input"] += input_tokens
             day_totals["output"] += agent_data["output_tokens"]
