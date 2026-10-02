@@ -19,6 +19,12 @@ from pathlib import Path
 from tomax.models import NormalizedUsageRecord, SourceStatus, SupportedAgent
 from tomax.privacy import PrivacyPolicy
 
+# Agents whose cache_read_tokens are reported on top of input_tokens; Codex
+# instead reports them as a subset of input_tokens.
+AGENTS_WITH_ADDITIVE_CACHE_READ = frozenset(
+    {SupportedAgent.CLAUDE_CODE.value, SupportedAgent.HERMES_AGENT.value}
+)
+
 SCHEMA_VERSION = 2
 
 MAX_NAME_ENTRIES_PER_CATEGORY = 50
@@ -143,7 +149,13 @@ def build_daily_record(
                 # Model names are provider-assigned identifiers, not
                 # user-authored strings, so they don't go through
                 # policy.sanitize() the way skill/MCP names do.
-                models[record.model] = models.get(record.model, 0) + record.tokens.headline_total
+                # Cache-inclusive, like the main token chart. Codex already
+                # folds cache reads into input_tokens, so only add them for
+                # the other agents.
+                model_total = record.tokens.headline_total + record.tokens.cache_write_tokens
+                if agent.value in AGENTS_WITH_ADDITIVE_CACHE_READ:
+                    model_total += record.tokens.cache_read_tokens
+                models[record.model] = models.get(record.model, 0) + model_total
             if record.observed_skill_name:
                 name = policy.sanitize(record.observed_skill_name)
                 skills[name] = skills.get(name, 0) + 1

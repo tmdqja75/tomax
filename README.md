@@ -173,6 +173,11 @@ of `input_tokens` (it's already counted there), so only Codex's
 (always-zero) cache-write count is added. See
 `aggregate.agent_effective_total` for the exact rule.
 
+The Model Usage chart always uses this cache-inclusive total per model
+(it's baked into the per-day records), so `--exclude-cache-tokens` does not
+change it. Records published before this change keep their old
+cache-exclusive model totals until that device republishes them.
+
 The raw, per-agent `headline_total` (`input + output + reasoning`, never
 including cache tokens) and the raw `cache_read_tokens`/`cache_write_tokens`
 counts are always both present in the private ledger and the published
